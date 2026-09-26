@@ -1,0 +1,31 @@
+{
+  "name": "hone",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @hone/app dev",
+    "typecheck": "tsc -b",
+    "format": "oxfmt",
+    "lint": "oxfmt --check && oxlint --type-aware --deny-warnings --report-unused-disable-directives",
+    "knip": "knip",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "knip": "6.38.0",
+    "lefthook": "2.1.14",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.11.0"
+    }
+  },
+  "packageManager": "pnpm@12.6.0"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "unicorn", "oxc"],
+  "categories": { "correctness": "error", "suspicious": "error", "perf": "error" },
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/no-unnecessary-condition": "warn",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/consistent-type-imports": "error",
+    "import/no-cycle": "error",
+    "import/no-default-export": "error",
+    "eslint/no-console": "error",
+    "eslint/no-param-reassign": "error",
+    "eslint/complexity": "error",
+    "unicorn/filename-case": ["error", { "case": "kebabCase" }]
+  },
+  "overrides": [
+    {
+      "files": ["packages/app/src/renderer/**"],
+      "rules": { "import/no-nodejs-modules": "error" }
+    },
+    {
+      "files": ["packages/app/**"],
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/host/**", "@hone/host"],
+                "message": "app talks to host only through @hone/protocol."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/host/**"],
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/app/**", "@hone/app"],
+                "message": "host talks to app only through @hone/protocol."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.config.ts"],
+      "rules": { "import/no-default-export": "off" }
+    }
+  ]
+}

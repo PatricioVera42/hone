@@ -1,0 +1,16 @@
+pre-commit:
+  jobs:
+    - name: format
+      glob: "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}"
+      run: pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  jobs:
+    - name: no attribution lines
+      run: '! grep -qiE "^co-authored-by:|generated with claude code" {1}'
+
+pre-push:
+  jobs:
+    - name: check
+      run: pnpm check

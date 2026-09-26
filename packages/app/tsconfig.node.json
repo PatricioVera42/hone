@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "types": ["node"],
+    "outDir": "dist/types/node"
+  },
+  "include": ["src/main", "scripts", "*.config.ts"],
+  "references": [{ "path": "../protocol" }]
+}

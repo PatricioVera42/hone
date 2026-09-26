@@ -8,7 +8,17 @@ You open a workshop: a folder that holds your notes, your projects and a profile
 
 ## Status
 
-In design. There is no code yet.
+In design. The monorepo foundation exists: `pnpm dev` opens an empty window, and there are no features yet.
+
+## Development
+
+Requires Windows with WSL2, and Node 24 and pnpm 12 inside WSL. The repo lives in WSL; `pnpm dev` launches the Windows Electron binary on it.
+
+```bash
+pnpm install
+pnpm dev
+pnpm check
+```
 
 ## Docs
 
