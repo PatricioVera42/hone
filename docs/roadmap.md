@@ -9,6 +9,16 @@
 
 Findings go to `research/`; anything that changes a decision becomes an ADR.
 
+## Before the first agent loop
+
+The repo goes public when the first Sandcastle loop runs, since that's when implementation starts (see [workflow.md](workflow.md)). On the same day:
+
+1. Make `PatricioVera42/hone` public. On GitHub Free, rulesets and unlimited Actions minutes need a public repo.
+2. Add the CI workflow that runs `pnpm check` ([research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md)).
+3. Turn on a ruleset on `main`: pull request required, the `check` job required, the maintainer in the bypass list for docs.
+4. Install CodeRabbit on the repo, with a short `.coderabbit.yaml`.
+5. Set up the issue tracker and triage labels for `to-spec`, `to-tickets` and `triage`, and configure Sandcastle.
+
 ## v1
 
 An Obsidian-like app with an integrated terminal and the agent workflow (generator, profile, projects, progress), for studying.
@@ -20,6 +30,9 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
   1. Skeleton: open a workshop, file tree, Markdown and code editor, terminal, dockview layout.
      Set up shadcn/ui with `@shadcn/lint` and install shadcn's agent skill (`pnpm dlx skills add shadcn/ui`) when `packages/app` is created (ADR 0008).
   2. Agents: `/onboard`, `/create`, `/refine`, `/cascade`, `/close`, `/quick-close` and `library-default/`. Plain text, so written and tested with Claude Code in parallel with stage 1.
+     For study projects, `library-default/` includes:
+     - A study skill adapted from Matt Pocock's `teach` (MIT). It looks for answers in the course material the user added to the project first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
+     - A PDF script plus the skill that invokes it, run by the user. `name.pdf` becomes `name.md` next to it, with page markers. Pages with little text or with drawings are exported whole as `name.assets/pNN.png` and embedded with `![[name.assets/pNN.png]]`. The user can replace an image with a tighter crop. The agent reads the Markdown and opens an image or a PDF page only when it needs it.
   3. Projects in the app: icon and type in the tree, "open session" button, progress summary, `hone .` with focus.
   4. Obsidian features (list above).
   5. Distribution: automatic host install in WSL.
@@ -28,6 +41,7 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 
 ## Later
 
+- The app converts a PDF automatically when one is added to a project.
 - Unsigned Windows installer on GitHub Releases, with a basic landing page.
 - Graph view, then Mermaid diagrams.
 - Code editing close to VS Code: LSP (autocomplete, errors, go to definition), debugger and visual git.
