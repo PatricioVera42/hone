@@ -9,6 +9,14 @@
 
 Findings go to `research/`; anything that changes a decision becomes an ADR.
 
+## Next
+
+1. Monorepo foundation, by hand in an interactive session, not through Sandcastle: `packages/app`, `packages/host` and `packages/protocol`, TypeScript strict, Oxlint, Oxfmt, Knip, Vitest, `pnpm check`, lefthook and `CODING_STANDARDS.md`, following [research/typescript-standards.md](../research/typescript-standards.md) and [research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md). It comes first because Sandcastle's gate runs `pnpm check`. No planning skills needed: the decisions are in ADRs 0008 and 0009 and the drafts in those research files.
+2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues.
+3. The steps in "Before the first agent loop", then the first loop on a small ticket.
+
+Stage 2 (agents) is plain text and can be done in parallel at any point.
+
 ## Before the first agent loop
 
 The repo goes public when the first Sandcastle loop runs, since that's when implementation starts (see [workflow.md](workflow.md)). On the same day:
