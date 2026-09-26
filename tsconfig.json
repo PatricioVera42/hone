@@ -1,9 +1,20 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/protocol" },
-    { "path": "packages/host" },
-    { "path": "packages/app/tsconfig.node.json" },
-    { "path": "packages/app/tsconfig.web.json" }
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/host"
+    },
+    {
+      "path": "packages/app/tsconfig.node.json"
+    },
+    {
+      "path": "packages/app/tsconfig.web.json"
+    },
+    {
+      "path": "lint-rules"
+    }
   ]
 }

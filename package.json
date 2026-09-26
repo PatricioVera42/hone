@@ -12,6 +12,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test"
   },
   "devDependencies": {
+    "@oxlint/plugins": "1.85.0",
     "@types/node": "24.19.0",
     "knip": "6.38.0",
     "lefthook": "2.1.14",

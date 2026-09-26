@@ -37,6 +37,7 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 - Built in stages, each one usable on its own:
   1. Skeleton: open a workshop, file tree, Markdown and code editor, terminal, dockview layout.
      Set up shadcn/ui with `@shadcn/lint` and install shadcn's agent skill (`pnpm dlx skills add shadcn/ui`) when `packages/app` is created (ADR 0008).
+     A Playwright test that opens the app and checks that the renderer has no `process` or `require` and that the page has a Content Security Policy. It backs up the `hone/electron-security` lint rule, which only catches literal values (`sandbox: false`, not `sandbox: isDev`).
   2. Agents: `/onboard`, `/create`, `/refine`, `/cascade`, `/close`, `/quick-close` and `library-default/`. Plain text, so written and tested with Claude Code in parallel with stage 1.
      For study projects, `library-default/` includes:
      - A study skill adapted from Matt Pocock's `teach` (MIT). It looks for answers in the course material the user added to the project first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
