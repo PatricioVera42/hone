@@ -28,7 +28,7 @@ Monorepo: `init --monorepo` creates `packages/ui` for shared components, importe
 
 Electron gotchas:
 - **No network at runtime.** Tailwind v4 compiles at build time, and fonts must be bundled, not loaded from Google Fonts.
-- **CSP.** Base UI positions popups with inline styles set from JavaScript. React sets them through the DOM, which a `style-src` without `'unsafe-inline'` doesn't block (assumption, based on how CSP treats DOM style changes versus `style` attributes in markup; verify with the Playwright CSP test from `typescript-standards.md` section 8).
+- **CSP.** Spike 1 showed that `style-src 'self'` without `'unsafe-inline'` breaks xterm, which injects a `<style>` element ([spike-01-window-host-terminal.md](spike-01-window-host-terminal.md)). The CSP will need `style-src 'self' 'unsafe-inline'`, which also covers Base UI's inline positioning styles. Scripts stay strict.
 - **The renderer is not a web page to other tools.** The shadcn CLI only needs to find `components.json` and the CSS file. The `-t vite` template should work inside electron-vite's renderer folder (assumption; confirm in the spike when choosing the build tool).
 
 ## 3. Mapping Hone's UI to components
