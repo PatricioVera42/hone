@@ -2,9 +2,9 @@
 
 ## Spike (throwaway, before v1)
 
-1. An Electron window on Windows opens a `node-pty` terminal in a host inside WSL, over WebSocket.
+1. An Electron window on Windows opens a `node-pty` terminal in a host inside WSL, over WebSocket. Done: works, about 2 ms per keystroke ([research](../research/spike-01-window-host-terminal.md)).
 2. Which skills and `AGENTS.md` files Claude Code and OpenCode load in nested projects, with and without git, and what happens when two skills share a name.
-3. pnpm + Electron + `node-pty` package cleanly; choose the build tool (electron-vite or Electron Forge).
+3. pnpm + Electron + `node-pty` package cleanly; choose the build tool (electron-vite or Electron Forge). Done: plain Vite and our own dev launcher (ADR 0009).
 4. The host notices files written by an agent inside WSL fast enough for the editor to show them immediately.
 
 Findings go to `research/`; anything that changes a decision becomes an ADR.
