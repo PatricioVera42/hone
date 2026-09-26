@@ -40,4 +40,4 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 
 ## How it's built
 
-Specs and tickets are written with the `to-spec` and `to-tickets` skills, implemented by a Sandcastle loop, and checked by hand with `qa-checklist`. `improve-codebase-architecture` runs periodically.
+See [workflow.md](workflow.md): planning with `grilling`, `to-spec` and `to-tickets`; `triage` by hand; one to three Sandcastle loops, one branch and pull request per ticket; `pnpm check`, CI and CodeRabbit as the gates; `qa-checklist` and a human merge.

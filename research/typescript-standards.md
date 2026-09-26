@@ -150,7 +150,7 @@ Recommendation: require every test to pass and use `requireAssertions` from day 
 
 ## 7. Where the checks run
 
-The how (git hooks, CI, required checks) lives in [git-hooks-and-ci.md](git-hooks-and-ci.md), still to be written. This file only fixes what runs. There is a single entry point, `pnpm check`, used by the agent loop, the hooks and CI alike:
+The how (git hooks, CI, required checks) lives in [git-hooks-and-ci.md](git-hooks-and-ci.md). This file only fixes what runs. There is a single entry point, `pnpm check`, used by the agent loop, the hooks and CI alike:
 
 1. `tsc -b` (typecheck, section 1)
 2. `oxfmt --check` and `oxlint --type-aware --deny-warnings --report-unused-disable-directives` (format and lint, sections 2, 3 and 5)
