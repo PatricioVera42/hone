@@ -18,6 +18,7 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 - Library skill updates: each copy records which library version it came from, and the generator offers to update it when refining the project.
 - Built in stages, each one usable on its own:
   1. Skeleton: open a workshop, file tree, Markdown and code editor, terminal, dockview layout.
+     Set up shadcn/ui with `@shadcn/lint` and install shadcn's agent skill (`pnpm dlx skills add shadcn/ui`) when `packages/app` is created (ADR 0008).
   2. Agents: `/onboard`, `/create`, `/refine`, `/cascade`, `/close`, `/quick-close` and `library-default/`. Plain text, so written and tested with Claude Code in parallel with stage 1.
   3. Projects in the app: icon and type in the tree, "open session" button, progress summary, `hone .` with focus.
   4. Obsidian features (list above).
