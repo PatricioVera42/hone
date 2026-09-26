@@ -3,7 +3,7 @@
 ## Spike (throwaway, before v1)
 
 1. An Electron window on Windows opens a `node-pty` terminal in a host inside WSL, over WebSocket. Done: works, about 2 ms per keystroke ([research](../research/spike-01-window-host-terminal.md)).
-2. Which skills and `AGENTS.md` files Claude Code and OpenCode load in nested projects, with and without git, and what happens when two skills share a name. Done: skills stop at the git root in both tools; ancestors' `AGENTS.md` load (Claude Code even across git); same-name skills are unreliable in OpenCode ([research](../research/spike-02-agent-context-loading.md)). Open decisions: where the generator lives, parent instructions in subprojects, skill name collisions.
+2. Which skills and `AGENTS.md` files Claude Code and OpenCode load in nested projects, with and without git, and what happens when two skills share a name. Done: skills stop at the git root in both tools; ancestors' `AGENTS.md` load (Claude Code even across git); same-name skills are unreliable in OpenCode ([research](../research/spike-02-agent-context-loading.md)). Decisions: the generator lives in `.hone/generator/` (ADR 0010), project instructions are written to be read stacked (ADR 0011), no two visible skills share a name (ADR 0012).
 3. pnpm + Electron + `node-pty` package cleanly; choose the build tool (electron-vite or Electron Forge). Done: plain Vite and our own dev launcher (ADR 0009).
 4. The host notices files written by an agent inside WSL fast enough for the editor to show them immediately. Done: yes, within milliseconds; chokidar with ignores ([research](../research/spike-04-file-watching.md)).
 
@@ -32,6 +32,7 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
   2. Agents: `/onboard`, `/create`, `/refine`, `/cascade`, `/close`, `/quick-close` and `library-default/`. Plain text, so written and tested with Claude Code in parallel with stage 1.
      For study projects, `library-default/` includes:
      - A study skill adapted from Matt Pocock's `teach` (MIT). It looks for answers in the course material the user added to the project first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
+     - A `find-in-workshop` skill: it walks up to the workshop root (the folder with `.hone/generator/`) and searches by name and content from there, skipping `node_modules`, `.git` and `.hone`. With several matches it asks which one; with none it says so and asks, never guessing the content. Every generated `AGENTS.md` carries a line telling the agent to use it when it can't find a file or folder the user mentions. Check first whether Claude Code asks permission to read outside the folder it was opened in.
      - A PDF script plus the skill that invokes it, run by the user. `name.pdf` becomes `name.md` next to it, with page markers. Pages with little text or with drawings are exported whole as `name.assets/pNN.png` and embedded with `![[name.assets/pNN.png]]`. The user can replace an image with a tighter crop. The agent reads the Markdown and opens an image or a PDF page only when it needs it.
   3. Projects in the app: icon and type in the tree, "open session" button, progress summary, `hone .` with focus.
   4. Obsidian features (list above).
@@ -46,6 +47,8 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 - Graph view, then Mermaid diagrams.
 - Code editing close to VS Code: LSP (autocomplete, errors, go to definition), debugger and visual git.
 - The app notices when a library skill changed and shows the diff in every project that copied it.
+- The app notices when a subproject gets its own `.git` and warns that it lost the skills it inherited (ADR 0012).
+- A `.hone/workshop.json` for workshop settings, when there are any (ADR 0010).
 - Test and support Linux, macOS and Windows without WSL.
 - Full OpenCode support (see ADR 0002).
 - Ship the host with its own Node, so WSL doesn't need Node installed.

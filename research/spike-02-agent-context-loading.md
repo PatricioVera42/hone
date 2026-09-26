@@ -47,6 +47,12 @@ Same name at two levels:
 4. **Same-name skills are unreliable.** Claude Code consistently picks the closest one. OpenCode's choice varies between runs, even between a project skill and a user-level one. Hone can't rely on a project skill overriding a library or global skill by name. The generator must give copied skills names that don't collide with anything visible from the project, including the user's own skills in `~/.claude/skills` and `~/.agents/skills`.
 5. **OpenCode's `debug skill` output is cut at 64 KB when piped.** Redirecting to a file works. It matters only for scripts that parse it.
 
+## Follow-up: contradicting stacked instructions
+
+Finding 3 raised whether a subproject's agent obeys its own `AGENTS.md` or its parent's when they disagree. Test tree in `~/hone-spike/stack`: `calculo/AGENTS.md` says to sign every answer ALFA and always answer in English; `calculo/practico/AGENTS.md` says to sign BETA and always answer in Spanish. Asked from `practico/` (no git), in English, who the agent is. Two variants: with a first line in each file naming the folder it applies to and saying a closer `AGENTS.md` wins, and without it. Three runs per variant with Claude Code (Haiku) and OpenCode (`opencode/big-pickle`).
+
+The child won in 12 of 12 runs: always BETA, always Spanish, with or without the scope line. This covers direct contradictions only; parent instructions the child doesn't contradict still reach it.
+
 ## Implications for the design
 
 - **Where the generator lives (finding 3).** Its instructions shouldn't be an ancestor of any project. One option is a `generator/` folder beside the projects, with its own `AGENTS.md`, where the user runs `/create` and `/refine`. The workshop's root `AGENTS.md` would then hold nothing, or only what every agent in the workshop should know. This changes the glossary entry and needs an ADR.

@@ -5,7 +5,7 @@ Hone is a desktop app for taking Markdown notes and working on projects (study o
 ## Language
 
 **Workshop**:
-The top-level folder Hone opens. It holds every project, the profile, the library and the generator. Hone finds it by walking up from wherever it is opened.
+The top-level folder Hone opens. It holds every project, the profile, the library and the generator. Hone finds it by walking up from wherever it is opened until it reaches the folder that contains `.hone/generator/`. It has no `AGENTS.md` of its own.
 _Avoid_: vault, root, workspace
 
 **Project**:
@@ -13,7 +13,7 @@ A folder Hone recognizes as a unit of work because it has its own metadata, agen
 _Avoid_: repo (a project may have no code)
 
 **Generator**:
-The agent at the top of the workshop that creates new projects and refines their agents and the profile. It only reads inside the workshop.
+The agent that creates new projects and refines their agents and the profile. It lives in `.hone/generator/` at the workshop root, so no project inherits its instructions. It only reads inside the workshop, except for listing the names of the user's global skills.
 _Avoid_: creator, meta-agent
 
 **Onboarding**:
@@ -33,7 +33,7 @@ What Hone knows about its user: prior knowledge, preferences and goals. The gene
 _Avoid_: user, config
 
 **Library**:
-The folder inside the workshop where the user keeps reusable skills and scripts. The generator offers them when creating or refining a project and copies the chosen ones into it, customized if asked.
+The folder inside the workshop where the user keeps reusable skills and scripts. The generator offers them when creating or refining a project and copies the chosen ones into it, customized if asked, under names that don't collide with any other skill visible from the project. The user can also ask the generator to import one of their global skills into it, under a new name.
 _Avoid_: catalog, templates
 
 **Script**:
