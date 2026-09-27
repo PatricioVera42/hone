@@ -2,6 +2,7 @@
 import { hostReadyLine } from "@hone/protocol";
 import { app, BrowserWindow } from "electron";
 import { execFileSync, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 function argValue(name: string): string | undefined {
@@ -21,6 +22,8 @@ function resolveNodeInWsl(): string {
 
 function startHost(repo: string): Promise<void> {
   const host = spawn("wsl.exe", ["-e", resolveNodeInWsl(), `${repo}/packages/host/src/main.ts`]);
+  // The token never goes on a command line or in an environment variable, only on stdin.
+  host.stdin.write(`${randomBytes(32).toString("hex")}\n`);
   app.on("quit", () => host.kill());
   host.stderr.on("data", (chunk: Buffer) => {
     process.stderr.write(`[host] ${String(chunk)}`);

@@ -6,6 +6,11 @@
     "start": "node src/main.ts"
   },
   "dependencies": {
-    "@hone/protocol": "workspace:*"
+    "@hone/protocol": "workspace:*",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1"
   }
 }
