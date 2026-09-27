@@ -2,5 +2,3 @@ packages:
   - packages/*
 allowBuilds:
   lefthook: true # its postinstall runs `lefthook install`
-minimumReleaseAgeExclude:
-  - ws@8.22.0
