@@ -54,6 +54,9 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 - The app converts a PDF automatically when one is added to a project.
 - Unsigned Windows installer on GitHub Releases, with a basic landing page.
 - Graph view, then Mermaid diagrams.
+- Light theme and a theme selector (stage 1 ships dark only).
+- Optional manual save (Ctrl+S) instead of autosave.
+- Tell notes apart visually from agent files (`AGENTS.md`, `PROGRESS.md`, skills) in the tree.
 - Code editing close to VS Code: LSP (autocomplete, errors, go to definition), debugger and visual git.
 - The app notices when a library skill changed and shows the diff in every project that copied it.
 - The app notices when a subproject gets its own `.git` and warns that it lost the skills it inherited (ADR 0012).

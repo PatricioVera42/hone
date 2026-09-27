@@ -5,8 +5,12 @@ Hone is a desktop app for taking Markdown notes and working on projects (study o
 ## Language
 
 **Workshop**:
-The top-level folder Hone opens. It holds every project, the profile, the library and the generator. Hone finds it by walking up from wherever it is opened until it reaches the folder that contains `.hone/generator/`. It has no `AGENTS.md` of its own.
+The top-level folder Hone opens. It holds every project, the profile, the library and the generator. Hone finds it by walking up from wherever it is opened until it reaches the folder that contains `.hone/generator/`. It has no `AGENTS.md` of its own. The user creates one from Hone by naming a new folder; a workshop is never created inside another.
 _Avoid_: vault, root, workspace
+
+**Note**:
+Any Markdown (`.md`) file in the workshop, including agent files such as `AGENTS.md` or `PROGRESS.md`. Everything else is just a file.
+_Avoid_: page, document
 
 **Project**:
 A folder Hone recognizes as a unit of work because it has its own metadata, agent and progress. Projects can be nested, but each one is self-contained.
