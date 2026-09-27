@@ -1,5 +1,53 @@
-import { hostReadyLine } from "@hone/protocol";
+import { handleJsonRpcMessage, hostReadyLine } from "@hone/protocol";
+import { createServer } from "node:http";
+import readline from "node:readline";
+import { URL } from "node:url";
+import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import { handlers } from "./handlers.ts";
+import { rawDataToText } from "./raw-data-text.ts";
 
-process.stdout.write(`${hostReadyLine}\n`);
-// Stay alive until the app closes our stdin.
-process.stdin.resume();
+function readToken(): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin });
+    rl.once("line", (line) => {
+      rl.close();
+      resolve(line);
+    });
+  });
+}
+
+async function respond(socket: WebSocket, data: RawData): Promise<void> {
+  const response = await handleJsonRpcMessage(rawDataToText(data), handlers);
+  socket.send(response);
+}
+
+async function main(): Promise<void> {
+  const token = await readToken();
+  process.stdin.resume();
+  process.stdin.on("end", () => process.exit(0));
+
+  const httpServer = createServer();
+  const wss = new WebSocketServer({
+    server: httpServer,
+    verifyClient: (info, callback) => {
+      const url = new URL(info.req.url ?? "", "http://localhost");
+      callback(url.searchParams.get("token") === token, 401);
+    },
+  });
+
+  wss.on("connection", (socket) => {
+    socket.on("message", (data: RawData) => {
+      void respond(socket, data);
+    });
+  });
+
+  httpServer.listen(0, "127.0.0.1", () => {
+    const address = httpServer.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("host server has no port");
+    }
+    process.stdout.write(`${hostReadyLine} ${String(address.port)}\n`);
+  });
+}
+
+void main();
