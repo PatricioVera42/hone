@@ -12,8 +12,8 @@ Findings go to `research/`; anything that changes a decision becomes an ADR.
 ## Next
 
 1. Monorepo foundation, by hand in an interactive session, not through Sandcastle: `packages/app`, `packages/host` and `packages/protocol`, TypeScript strict, Oxlint, Oxfmt, Knip, Vitest, `pnpm check`, lefthook and `CODING_STANDARDS.md`, following [research/typescript-standards.md](../research/typescript-standards.md) and [research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md). It comes first because Sandcastle's gate runs `pnpm check`. No planning skills needed: the decisions are in ADRs 0008 and 0009 and the drafts in those research files. Done: `pnpm dev` opens an empty window and starts the host; `pnpm check` runs in about 3 s.
-2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues.
-3. The steps in "Before the first agent loop", then the first loop on a small ticket.
+2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues. Done: spec #1, tickets #2 to #12, all `ready-for-agent`.
+3. The steps in "Before the first agent loop", then the first loop on a small ticket. The loop starts with #2.
 
 Stage 2 (agents) is plain text and can be done in parallel at any point.
 
@@ -26,6 +26,8 @@ The repo goes public when the first Sandcastle loop runs, since that's when impl
 3. Turn on a ruleset on `main`: pull request required, the `check` job required, the maintainer in the bypass list for docs.
 4. Install CodeRabbit on the repo, with a short `.coderabbit.yaml`.
 5. Set up the issue tracker and triage labels for `to-spec`, `to-tickets` and `triage`, and configure Sandcastle.
+
+Done on 2026-09-26 (#13): the repo is public, CI runs `pnpm check`, the ruleset protects `main`, and `pnpm sandcastle <issue>` runs the loop (see the README). A throwaway issue went through the whole loop to a green pull request, and a failing `pnpm check` pushes nothing. Pending: CodeRabbit is installed with `.coderabbit.yaml` but hasn't reviewed a pull request yet; its dashboard couldn't check the seat assignment.
 
 ## v1
 
