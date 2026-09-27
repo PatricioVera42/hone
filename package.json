@@ -9,9 +9,12 @@
     "lint": "oxfmt --check && oxlint --type-aware --deny-warnings --report-unused-disable-directives",
     "knip": "knip",
     "test": "vitest run",
-    "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test",
+    "sandcastle": "node .sandcastle/main.ts",
+    "sandcastle:image": "sandcastle docker build-image"
   },
   "devDependencies": {
+    "@ai-hero/sandcastle": "0.12.0",
     "@oxlint/plugins": "1.85.0",
     "@types/node": "24.19.0",
     "knip": "6.38.0",

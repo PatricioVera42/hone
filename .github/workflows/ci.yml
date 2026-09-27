@@ -1,0 +1,33 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check: # the required status check in the ruleset on main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the attribution step reads the pull request's commits
+      - uses: pnpm/setup@v3 # installs pnpm and Node from package.json, then pnpm install
+        with:
+          cache: true
+          require-lockfile: true
+      - name: No attribution lines in commit messages
+        if: github.event_name == 'pull_request'
+        run: |
+          if git log --format=%B "origin/${{ github.base_ref }}..HEAD" | grep -qiE '^co-authored-by:|generated with claude code'; then
+            echo "Remove Co-Authored-By / 'Generated with Claude Code' lines from the commit messages."
+            exit 1
+          fi
+      - run: pnpm check

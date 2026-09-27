@@ -20,6 +20,24 @@ pnpm dev
 pnpm check
 ```
 
+## Agent loop
+
+Tickets labeled `ready-for-agent` are implemented by Claude Code inside a Docker container, through [Sandcastle](https://github.com/mattpocock/sandcastle) ([workflow](docs/workflow.md)). The harness in `.sandcastle/main.ts` runs the agent on branch `agent/issue-<n>`, then runs `pnpm check` itself. Only if it passes does it push the branch and open a pull request.
+
+Setup, once:
+
+1. Install Docker in WSL.
+2. Run `claude setup-token` and put the token in `.sandcastle/.env` as `CLAUDE_CODE_OAUTH_TOKEN` (see `.sandcastle/.env.example`).
+3. Build the image with `pnpm sandcastle:image`, and again after changing `.sandcastle/Dockerfile`.
+
+Then, for each ticket:
+
+```bash
+pnpm sandcastle <issue number>
+```
+
+The agent gets no GitHub credentials; the harness reads the issue and opens the pull request with your `gh` login. Your skills in `~/.agents/skills` are mounted read-only into the container.
+
 ## Docs
 
 - [Glossary](CONTEXT.md)

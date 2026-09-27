@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: chill
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!pnpm-lock.yaml"
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - AGENTS.md
+      - CODING_STANDARDS.md
+      - CONTEXT.md
+      - "docs/adr/*.md"
