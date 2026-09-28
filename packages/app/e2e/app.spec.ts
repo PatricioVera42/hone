@@ -2,6 +2,9 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import path from "node:path";
 
+// The spec's policy. Inline styles are allowed because xterm injects <style> elements (xtermjs/xterm.js#4445).
+const contentSecurityPolicy =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*";
 const mainPath = path.join(import.meta.dirname, "..", "dist-electron", "main.cjs");
 
 test("renderer has no Node globals and a Content Security Policy", async () => {
@@ -13,7 +16,7 @@ test("renderer has no Node globals and a Content Security Policy", async () => {
     const csp = await page
       .locator('meta[http-equiv="Content-Security-Policy"]')
       .getAttribute("content");
-    expect(csp).toBeTruthy();
+    expect(csp).toBe(contentSecurityPolicy);
   } finally {
     await electronApp.close();
   }

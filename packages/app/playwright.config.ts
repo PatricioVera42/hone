@@ -6,4 +6,6 @@ export default defineConfig({
   timeout: 30_000,
   forbidOnly: !!process.env["CI"],
   reporter: "list",
+  // Agents debug from text (assertions, the list reporter, ariaSnapshot), never from images.
+  use: { screenshot: "off", video: "off", trace: "off" },
 });
