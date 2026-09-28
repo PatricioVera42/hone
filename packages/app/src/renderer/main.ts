@@ -1,2 +1,5 @@
 // Renderer entry. The UI starts here.
-document.body.textContent = "Hone";
+const socket = new WebSocket(window.hone.getHostConnection());
+socket.addEventListener("open", () => {
+  document.body.textContent = "Connected to host";
+});
