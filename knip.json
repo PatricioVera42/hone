@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["wslpath", "wsl.exe"]
+  "ignoreBinaries": ["wslpath", "wsl.exe"],
+  "ignore": ["packages/app/src/renderer/components/ui/**"]
 }
