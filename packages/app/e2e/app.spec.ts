@@ -44,6 +44,8 @@ test("recovers from a lost host", async () => {
     await expect(page.getByText("Connection to the host was lost.")).toBeVisible();
 
     await page.getByRole("button", { name: "Restart" }).click();
+    // The welcome screen only renders once the new host's socket is open.
+    await expect(page.getByText("Connection to the host was lost.")).toBeHidden();
     await expect(page.getByRole("button", { name: "Open workshop" })).toBeVisible();
   } finally {
     await electronApp.close();

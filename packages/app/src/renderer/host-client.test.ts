@@ -96,12 +96,12 @@ describe("onNotification", () => {
     const client = new HostClient(fakeHost.url);
     const socket = await fakeHost.connection;
 
-    const received: number[] = [];
-    client.onNotification(pingNotification, (params) => received.push(params.count));
+    const received = new Promise<number>((resolve) => {
+      client.onNotification(pingNotification, (params) => resolve(params.count));
+    });
     socket.send(JSON.stringify({ jsonrpc: "2.0", method: "test.ping", params: { count: 1 } }));
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(received).toStrictEqual([1]);
+    await expect(received).resolves.toBe(1);
   });
 
   it("stops delivering once unsubscribed", async () => {
@@ -114,10 +114,25 @@ describe("onNotification", () => {
       received.push(params.count),
     );
     unsubscribe();
+    // A second subscriber runs in the same dispatch, so once it has the message the first would have too.
+    const delivered = new Promise<void>((resolve) => {
+      client.onNotification(pingNotification, () => resolve());
+    });
     socket.send(JSON.stringify({ jsonrpc: "2.0", method: "test.ping", params: { count: 1 } }));
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await delivered;
     expect(received).toStrictEqual([]);
+  });
+});
+
+describe("onOpen", () => {
+  it("calls the handler once the socket opens", async () => {
+    fakeHost = await startFakeHost();
+    const client = new HostClient(fakeHost.url);
+
+    const opened = new Promise<void>((resolve) => client.onOpen(() => resolve()));
+
+    await expect(opened).resolves.toBeUndefined();
   });
 });
 
@@ -142,9 +157,25 @@ describe("onClose", () => {
     let calls = 0;
     const unsubscribe = client.onClose(() => (calls += 1));
     unsubscribe();
+    // Listeners run in the same close event, so once this one runs the first would have too.
+    const closed = new Promise<void>((resolve) => client.onClose(() => resolve()));
     await fakeHost.close();
     fakeHost = undefined;
 
+    await closed;
     expect(calls).toBe(0);
+  });
+});
+
+describe("close", () => {
+  it("closes the socket", async () => {
+    fakeHost = await startFakeHost();
+    const client = new HostClient(fakeHost.url);
+    const socket = await fakeHost.connection;
+
+    const serverSawClose = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+    client.close();
+
+    await expect(serverSawClose).resolves.toBeUndefined();
   });
 });

@@ -79,10 +79,20 @@ export class HostClient {
     return () => handlers.delete(wrapped);
   }
 
+  /** Calls `handler` once the socket opens. Returns an unsubscribe function. */
+  onOpen(handler: () => void): () => void {
+    this.socket.addEventListener("open", handler);
+    return () => this.socket.removeEventListener("open", handler);
+  }
+
   /** Calls `handler` once the socket closes, such as when the host process dies. Returns an unsubscribe function. */
   onClose(handler: () => void): () => void {
     this.socket.addEventListener("close", handler);
     return () => this.socket.removeEventListener("close", handler);
+  }
+
+  close(): void {
+    this.socket.close();
   }
 
   private send(message: string): void {
