@@ -1,4 +1,4 @@
-// Electron main bundle, as CommonJS.
+// Electron main and preload bundles, as CommonJS.
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -7,7 +7,7 @@ export default defineConfig({
     emptyOutDir: false,
     minify: false,
     lib: {
-      entry: { main: "src/main/main.ts" },
+      entry: { main: "src/main/main.ts", preload: "src/preload/preload.ts" },
       formats: ["cjs"],
       fileName: (_format, name) => `${name}.cjs`,
     },

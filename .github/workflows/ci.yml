@@ -31,3 +31,15 @@ jobs:
             exit 1
           fi
       - run: pnpm check
+
+  e2e: # not required yet: Electron + Playwright under xvfb is new and unverified in CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+          require-lockfile: true
+      - run: pnpm --filter @hone/app exec install-electron --no
+      - run: xvfb-run pnpm test:e2e

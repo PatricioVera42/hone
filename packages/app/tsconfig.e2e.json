@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "types": ["node"],
+    "lib": ["es2024", "dom"],
+    "outDir": "dist/types/e2e"
+  },
+  "include": ["e2e", "playwright.config.ts"]
+}

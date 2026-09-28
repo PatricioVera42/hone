@@ -20,6 +20,18 @@ pnpm dev
 pnpm check
 ```
 
+## End-to-end tests
+
+`pnpm test:e2e` builds the app (`pnpm build`) and runs Playwright against it, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does.
+
+Playwright needs a display. Locally in WSL, run it under `xvfb-run`:
+
+```bash
+xvfb-run pnpm test:e2e
+```
+
+In the Sandcastle container it's the same command, since the image already has `xvfb` (`.sandcastle/Dockerfile`). Electron's own sandbox can't start there (no `root`-owned SUID helper, and Docker blocks the user namespaces it would otherwise use), so the tests launch Electron with `--no-sandbox`; the app itself never turns its sandbox off (`hone/electron-security` guards against that).
+
 ## Agent loop
 
 Tickets labeled `ready-for-agent` are implemented by Claude Code inside a Docker container, through [Sandcastle](https://github.com/mattpocock/sandcastle) ([workflow](docs/workflow.md)). The harness in `.sandcastle/main.ts` runs the agent on branch `agent/issue-<n>`, then runs `pnpm check` itself. Only if it passes does it push the branch and open a pull request.

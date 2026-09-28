@@ -1,9 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "workspaces": {
-    "packages/app": {
-      "entry": ["src/main/main.ts", "vite.electron.config.ts"]
-    }
-  },
   "ignoreBinaries": ["wslpath", "wsl.exe"]
 }
