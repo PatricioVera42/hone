@@ -8,6 +8,7 @@ export {
   registerMethod,
   type MethodDefinition,
   type MethodHandler,
+  type NotificationDefinition,
 } from "./json-rpc.ts";
 export { workshopCreateMethod, workshopOpenMethod, type WorkshopInfo } from "./methods/workshop.ts";
 export { validateName, type NameValidation } from "./name.ts";

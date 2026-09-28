@@ -22,6 +22,12 @@ export interface MethodHandler {
   readonly execute: (rawParams: unknown) => Promise<unknown>;
 }
 
+/** A notification's shared definition: one-way, no id and no response, both sides derive its type from this. */
+export interface NotificationDefinition<Params = unknown> {
+  readonly name: string;
+  readonly params: z.ZodType<Params>;
+}
+
 class InvalidParamsError extends Error {}
 
 /** Binds a method definition to its implementation, validating params before calling it. */

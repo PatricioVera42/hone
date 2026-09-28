@@ -8,4 +8,7 @@ function asString(value: unknown): string {
 
 contextBridge.exposeInMainWorld("hone", {
   getHostConnection: (): string => asString(ipcRenderer.sendSync("host:connection")),
+  restartHost: async (): Promise<void> => {
+    await ipcRenderer.invoke("host:restart");
+  },
 });

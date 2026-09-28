@@ -2,5 +2,6 @@
 interface Window {
   hone: {
     getHostConnection(): string;
+    restartHost(): Promise<void>;
   };
 }

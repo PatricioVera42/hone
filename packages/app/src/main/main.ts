@@ -54,30 +54,47 @@ function waitForReadyPort(host: ChildProcessWithoutNullStreams): Promise<number>
   });
 }
 
-async function startHost(): Promise<string> {
+interface RunningHost {
+  readonly connection: string;
+  kill(): void;
+}
+
+async function startHost(): Promise<RunningHost> {
   const token = randomBytes(32).toString("hex");
   const host = spawnHost();
   // The token never goes on a command line or in an environment variable, only on stdin.
   host.stdin.write(`${token}\n`);
-  app.on("quit", () => host.kill());
   host.stderr.on("data", (chunk: Buffer) => {
     process.stderr.write(`[host] ${String(chunk)}`);
   });
   const port = await waitForReadyPort(host);
-  return `ws://127.0.0.1:${String(port)}/?token=${token}`;
+  globalThis.honeHostProcess = host;
+  return {
+    connection: `ws://127.0.0.1:${String(port)}/?token=${token}`,
+    kill: () => host.kill(),
+  };
 }
 
 async function start(): Promise<void> {
   Menu.setApplicationMenu(null);
-  const hostConnection = await startHost();
-  ipcMain.on("host:connection", (event) => {
-    event.returnValue = hostConnection;
-  });
+  const host = { current: await startHost() };
+  app.on("quit", () => host.current.kill());
+
   const window = new BrowserWindow({
     width: 1000,
     height: 650,
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
+
+  ipcMain.on("host:connection", (event) => {
+    event.returnValue = host.current.connection;
+  });
+  ipcMain.handle("host:restart", async () => {
+    host.current.kill();
+    host.current = await startHost();
+    window.webContents.reload();
+  });
+
   const devServer = argValue("dev-server");
   if (devServer === undefined) {
     await window.loadFile(path.join(__dirname, "../dist/renderer/index.html"));

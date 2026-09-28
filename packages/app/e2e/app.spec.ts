@@ -22,11 +22,31 @@ test("renderer has no Node globals and a Content Security Policy", async () => {
   }
 });
 
-test("connects to the host", async () => {
+test("shows the welcome screen", async () => {
   const electronApp = await electron.launch({ args: [mainPath, "--no-sandbox"] });
   try {
     const page = await electronApp.firstWindow();
-    await expect(page.locator("body")).toHaveText("Connected to host");
+    await expect(page.getByRole("button", { name: "Open workshop" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create workshop" })).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("recovers from a lost host", async () => {
+  const electronApp = await electron.launch({ args: [mainPath, "--no-sandbox"] });
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByRole("button", { name: "Open workshop" })).toBeVisible();
+
+    // Reach the host process through main, the way #4's brief says to: no preload API just for this.
+    await electronApp.evaluate(() => globalThis.honeHostProcess?.kill());
+    await expect(page.getByText("Connection to the host was lost.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Restart" }).click();
+    // The welcome screen only renders once the new host's socket is open.
+    await expect(page.getByText("Connection to the host was lost.")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Open workshop" })).toBeVisible();
   } finally {
     await electronApp.close();
   }
