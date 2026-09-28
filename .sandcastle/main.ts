@@ -49,7 +49,7 @@ const sandbox = await createSandbox({
 
 try {
   const result = await sandbox.run({
-    agent: claudeCode("claude-sonnet-5"),
+    agent: claudeCode("claude-opus-5-5"),
     promptFile: ".sandcastle/implement.md",
     promptArgs: { ISSUE_NUMBER: issue, ISSUE: gh("issue", "view", issue, "--comments") },
     logging: { type: "stdout" },
