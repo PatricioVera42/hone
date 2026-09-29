@@ -32,7 +32,7 @@ function computeTheme(element: HTMLElement): ITheme {
     cursorAccent: compute("var(--background)"),
     // Opaque, since xterm drops a translucent color it can't parse as hex or rgba(), and gives an opaque one its
     // own transparency.
-    selectionBackground: compute("var(--ring)"),
+    selectionBackground: compute("var(--foreground)"),
   };
   probe.remove();
   return theme;
