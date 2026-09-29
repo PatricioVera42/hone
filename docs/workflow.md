@@ -8,7 +8,7 @@ How Hone is built: planning with a human, implementation by an agent loop, check
 2. **Triage.** `/triage`, run by hand, classifies open issues and moves each one to a state. A ticket reaches `ready-for-agent` only with an agent brief that holds everything needed to implement it. Triage doesn't start the loop.
 3. **Implement.** Each Sandcastle loop takes one `ready-for-agent` ticket, on its own branch (`branchStrategy: { type: "branch", branch: "agent/issue-<n>" }`). Its prompt stays generic:
    - Read the issue and its brief.
-   - Implement with `/implement`, test first.
+   - Implement with `/implement`, test first where there's logic that can be wrong. The acceptance criteria's Playwright tests cover UI wiring, which gets no unit tests.
    - Run `pnpm check` before committing.
    - Don't run `/code-review`: CI and CodeRabbit cover it.
 4. **Gate.** The Sandcastle script runs `pnpm check` itself after the agent. If it passes, it pushes the branch and opens a pull request. If it fails, the agent gets the output and fixes it in the same container, up to two times, and the pull request description lists each fix. If it still fails, nothing leaves the machine.
