@@ -1,8 +1,9 @@
 // Dev loop: Vite dev server and a watch build of main in WSL, Windows Electron pointed at them.
 import { execFileSync, spawn } from "node:child_process";
-import { cpSync, existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { build, createServer } from "vite";
+import { fillWindowsElectronCache } from "./windows-electron-cache.ts";
 
 const appDir = path.resolve(import.meta.dirname, "..");
 const repo = path.resolve(appDir, "../..");
@@ -33,18 +34,14 @@ function windowsElectron(): string {
     cwd: "/mnt/c",
   }).trim();
   const cacheDir = path.join(toWslPath(localAppData), "hone-dev", `electron-${version}`);
-  if (!existsSync(path.join(cacheDir, "electron.exe"))) {
-    // Electron downloads its binary on demand; ask for the Windows one even though we run in WSL.
-    if (!existsSync(path.join(appDir, "node_modules/electron/dist/electron.exe"))) {
-      execFileSync("pnpm", ["exec", "install-electron", "--no"], {
-        cwd: appDir,
-        env: { ...process.env, ELECTRON_INSTALL_PLATFORM: "win32" },
-        stdio: "inherit",
-      });
-    }
-    process.stdout.write(`copying Electron ${version} to ${cacheDir}\n`);
-    cpSync(path.join(appDir, "node_modules/electron/dist"), cacheDir, { recursive: true });
-  }
+  fillWindowsElectronCache(path.join(appDir, "node_modules/electron"), cacheDir, (platform) => {
+    // Electron downloads its binary on demand; ELECTRON_INSTALL_PLATFORM asks for the Windows one even though we run in WSL.
+    execFileSync("pnpm", ["exec", "install-electron", "--no"], {
+      cwd: appDir,
+      env: platform ? { ...process.env, ELECTRON_INSTALL_PLATFORM: platform } : process.env,
+      stdio: "inherit",
+    });
+  });
   return path.join(cacheDir, "electron.exe");
 }
 
