@@ -72,3 +72,51 @@ export const filesWriteMethod: MethodDefinition<
   params: z.object({ path: z.string(), content: z.string(), baseVersion: z.string() }),
   result: z.object({ version: z.string() }),
 };
+
+/**
+ * Creates an empty file or a folder at `path`, inside a folder that already exists. Its last segment follows
+ * `validateName`. Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` when the parent folder doesn't exist,
+ * `InvalidName` and `AlreadyExists` when anything, even a broken symlink, is already there.
+ */
+export const filesCreateMethod: MethodDefinition<{ path: string; kind: FileEntry["kind"] }, null> =
+  {
+    name: "files.create",
+    params: z.object({ path: z.string(), kind: fileEntrySchema.shape.kind }),
+    result: z.null(),
+  };
+
+/**
+ * Renames a file or folder, or a symlink itself rather than its target. `to`'s last segment follows `validateName`,
+ * and its parent folder must exist. Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` when `from` or `to`'s
+ * parent folder doesn't exist, `InvalidName` (also for the workshop root as `from`) and `AlreadyExists` when
+ * something else is already at `to`. A change of case alone is allowed on a case-insensitive disk.
+ */
+export const filesRenameMethod: MethodDefinition<{ from: string; to: string }, null> = {
+  name: "files.rename",
+  params: z.object({ from: z.string(), to: z.string() }),
+  result: z.null(),
+};
+
+/**
+ * Deletes a file, or a folder with everything inside it, for good: there is no trash. A symlink is removed, not its
+ * target. Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` and `InvalidName` for the workshop root.
+ */
+export const filesDeleteMethod: MethodDefinition<{ path: string }, null> = {
+  name: "files.delete",
+  params: z.object({ path: z.string() }),
+  result: z.null(),
+};
+
+/** The most files {@link filesCountFilesMethod} counts before it stops. */
+export const maxCountedFiles = 10_000;
+
+/**
+ * Counts the files inside a folder at any depth, hidden ones, `.git` and `node_modules` included, and symlinks
+ * without following them, so the user knows what deleting it removes. Stops at {@link maxCountedFiles}.
+ * Fails with `NoWorkshopOpen`, `OutsideWorkshop` and `NotFound` (also for a file).
+ */
+export const filesCountFilesMethod: MethodDefinition<{ path: string }, { count: number }> = {
+  name: "files.countFiles",
+  params: z.object({ path: z.string() }),
+  result: z.object({ count: z.number() }),
+};

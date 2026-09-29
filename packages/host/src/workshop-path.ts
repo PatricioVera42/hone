@@ -1,10 +1,14 @@
-import { AppError } from "@hone/protocol";
+import { AppError, validateName } from "@hone/protocol";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
 function isInside(folder: string, candidate: string): boolean {
   const relative = path.relative(folder, candidate);
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+function isLexicallyInside(realRoot: string, protocolPath: string): boolean {
+  return !path.isAbsolute(protocolPath) && isInside(realRoot, path.resolve(realRoot, protocolPath));
 }
 
 function isMissingPathError(error: unknown): boolean {
@@ -40,12 +44,35 @@ export async function resolveWorkshopPath(
     throw new AppError("NoWorkshopOpen", `No workshop is open to resolve ${protocolPath}`);
   }
   const outside = new AppError("OutsideWorkshop", `${protocolPath} is outside the workshop`);
-  if (path.isAbsolute(protocolPath)) throw outside;
-
   const realRoot = await realPathOrNotFound(workshopRoot, protocolPath);
   // Checked before touching the disk too, so `../x` fails the same way whether or not `x` exists.
-  if (!isInside(realRoot, path.resolve(realRoot, protocolPath))) throw outside;
+  if (!isLexicallyInside(realRoot, protocolPath)) throw outside;
   const realPath = await realPathOrNotFound(path.join(realRoot, protocolPath), protocolPath);
   if (!isInside(realRoot, realPath)) throw outside;
   return realPath;
+}
+
+/**
+ * Like {@link resolveWorkshopPath}, but resolves only the parent folder, so a symlink at the path itself is left as
+ * it is, and whatever is there doesn't need to exist: for creating, renaming and deleting. Fails like
+ * {@link resolveWorkshopPath} for the parent folder, and with `InvalidName` when the last segment isn't a valid
+ * name by `validateName`, which includes the workshop root itself.
+ */
+export async function resolveWorkshopEntryPath(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+): Promise<string> {
+  // Checked on the whole path, since the parent folder alone can look inside: `""` for `/tmp` or `..`.
+  if (workshopRoot !== undefined && !isLexicallyInside(workshopRoot, protocolPath)) {
+    throw new AppError("OutsideWorkshop", `${protocolPath} is outside the workshop`);
+  }
+  const slash = protocolPath.lastIndexOf("/");
+  const name = protocolPath.slice(slash + 1);
+  const folder = await resolveWorkshopPath(
+    workshopRoot,
+    slash === -1 ? "" : protocolPath.slice(0, slash),
+  );
+  const validation = validateName(name);
+  if (!validation.valid) throw new AppError("InvalidName", validation.reason);
+  return path.join(folder, name);
 }

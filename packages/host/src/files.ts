@@ -1,9 +1,9 @@
-import { AppError, type FileContent, type FileEntry } from "@hone/protocol";
+import { AppError, maxCountedFiles, type FileContent, type FileEntry } from "@hone/protocol";
 import { createHash, randomBytes } from "node:crypto";
-import { promises as fs, type Dirent } from "node:fs";
+import { promises as fs, type Dirent, type Stats } from "node:fs";
 import path from "node:path";
 import { inspectFile, maxBytes } from "./inspect-file.ts";
-import { resolveWorkshopPath } from "./workshop-path.ts";
+import { resolveWorkshopEntryPath, resolveWorkshopPath } from "./workshop-path.ts";
 
 // Tool internals nobody browses, and big enough to swamp the tree.
 const hiddenNames = new Set([".git", "node_modules"]);
@@ -98,4 +98,109 @@ export async function writeFile(
     throw error;
   }
   return { version: createHash("sha256").update(bytes).digest("hex") };
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+/** Creates an empty file or a folder in the open workshop. Fails like {@link resolveWorkshopEntryPath}, and with `AlreadyExists`. */
+export async function createEntry(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+  kind: FileEntry["kind"],
+): Promise<null> {
+  const target = await resolveWorkshopEntryPath(workshopRoot, protocolPath);
+  try {
+    if (kind === "folder") await fs.mkdir(target);
+    // `wx` fails rather than truncating whatever is already there.
+    else await fs.writeFile(target, "", { flag: "wx" });
+  } catch (error) {
+    if (hasErrorCode(error, "EEXIST")) {
+      throw new AppError("AlreadyExists", `${protocolPath} already exists`);
+    }
+    throw error;
+  }
+  return null;
+}
+
+/** The entry at a path itself, a symlink rather than its target, or `undefined` when nothing is there. */
+async function statEntry(entryPath: string): Promise<Stats | undefined> {
+  try {
+    return await fs.lstat(entryPath);
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * Renames a file or folder of the open workshop, or a symlink itself. Fails like {@link resolveWorkshopEntryPath}
+ * for either path, with `NotFound` when nothing is at `from` and `AlreadyExists` when something else is at `to`.
+ */
+export async function renameEntry(
+  workshopRoot: string | undefined,
+  from: string,
+  to: string,
+): Promise<null> {
+  const source = await resolveWorkshopEntryPath(workshopRoot, from);
+  const target = await resolveWorkshopEntryPath(workshopRoot, to);
+  const sourceStats = await statEntry(source);
+  if (sourceStats === undefined) throw new AppError("NotFound", `${from} doesn't exist`);
+  const targetStats = await statEntry(target);
+  // The same entry under another case, on a case-insensitive disk such as a Windows drive.
+  const caseChange =
+    targetStats?.ino === sourceStats.ino &&
+    targetStats.dev === sourceStats.dev &&
+    path.basename(source).toLowerCase() === path.basename(target).toLowerCase();
+  if (targetStats !== undefined && !caseChange) {
+    throw new AppError("AlreadyExists", `${to} already exists`);
+  }
+  await fs.rename(source, target);
+  return null;
+}
+
+/**
+ * Deletes a file, or a folder with everything inside it, of the open workshop. A symlink is removed, not its
+ * target. Fails like {@link resolveWorkshopEntryPath}, and with `NotFound` when nothing is there.
+ */
+export async function deleteEntry(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+): Promise<null> {
+  const entry = await resolveWorkshopEntryPath(workshopRoot, protocolPath);
+  if ((await statEntry(entry)) === undefined) {
+    throw new AppError("NotFound", `${protocolPath} doesn't exist`);
+  }
+  await fs.rm(entry, { recursive: true });
+  return null;
+}
+
+/** Adds the files inside `folder` at any depth to `counted`, stopping once it reaches {@link maxCountedFiles}. */
+async function countInside(
+  folder: string,
+  protocolPath: string,
+  counted: { count: number },
+): Promise<void> {
+  const entries = await readFolder(folder, protocolPath);
+  const subfolders = entries.filter((entry) => entry.isDirectory());
+  counted.count += entries.length - subfolders.length;
+  if (counted.count >= maxCountedFiles) return;
+  await Promise.all(
+    subfolders.map((entry) => countInside(path.join(folder, entry.name), protocolPath, counted)),
+  );
+}
+
+/**
+ * Counts the files inside a folder of the open workshop at any depth, hidden ones included, and symlinks without
+ * following them. Stops at {@link maxCountedFiles}. Fails like {@link resolveWorkshopPath}, and with `NotFound`
+ * for a file.
+ */
+export async function countFiles(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+): Promise<{ count: number }> {
+  const counted = { count: 0 };
+  await countInside(await resolveWorkshopPath(workshopRoot, protocolPath), protocolPath, counted);
+  return { count: Math.min(counted.count, maxCountedFiles) };
 }

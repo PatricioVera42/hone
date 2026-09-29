@@ -1,8 +1,12 @@
 import {
   encodeNotification,
   filesChangedNotification,
+  filesCountFilesMethod,
+  filesCreateMethod,
+  filesDeleteMethod,
   filesListMethod,
   filesReadMethod,
+  filesRenameMethod,
   filesWriteMethod,
   registerMethod,
   workshopCreateMethod,
@@ -10,7 +14,15 @@ import {
   type MethodHandler,
   type WorkshopInfo,
 } from "@hone/protocol";
-import { listFolder, readFile, writeFile } from "./files.ts";
+import {
+  countFiles,
+  createEntry,
+  deleteEntry,
+  listFolder,
+  readFile,
+  renameEntry,
+  writeFile,
+} from "./files.ts";
 import { watchWorkshop, type WorkshopWatcher } from "./watch-workshop.ts";
 import { createWorkshop, openWorkshop } from "./workshop.ts";
 
@@ -57,6 +69,10 @@ export function createConnection(send: (message: string) => void): Connection {
       ),
       registerMethod(filesListMethod, ({ path }) => listFolder(workshopRoot, path)),
       registerMethod(filesReadMethod, ({ path }) => readFile(workshopRoot, path)),
+      registerMethod(filesCountFilesMethod, ({ path }) => countFiles(workshopRoot, path)),
+      registerMethod(filesCreateMethod, ({ path, kind }) => createEntry(workshopRoot, path, kind)),
+      registerMethod(filesDeleteMethod, ({ path }) => deleteEntry(workshopRoot, path)),
+      registerMethod(filesRenameMethod, ({ from, to }) => renameEntry(workshopRoot, from, to)),
       registerMethod(filesWriteMethod, ({ path, content, baseVersion }) =>
         writeFile(workshopRoot, path, content, baseVersion),
       ),
