@@ -99,6 +99,29 @@ async function startHost(): Promise<RunningHost> {
   };
 }
 
+// Long enough for a save to reach the host, short enough that a hung renderer doesn't keep the window open.
+const flushTimeoutMs = 2000;
+
+/** Asks the renderer to save pending edits when the window is about to close, and closes it once it answers or after 2 seconds. */
+function flushSavesBeforeClosing(window: BrowserWindow): void {
+  let flushing = false;
+  let flushed = false;
+  window.on("close", (event) => {
+    if (flushed) return;
+    event.preventDefault();
+    if (flushing) return;
+    flushing = true;
+    void new Promise<void>((resolve) => {
+      ipcMain.once("window:saves-flushed", () => resolve());
+      setTimeout(resolve, flushTimeoutMs);
+      window.webContents.send("window:flush-saves");
+    }).then(() => {
+      flushed = true;
+      if (!window.isDestroyed()) window.close();
+    });
+  });
+}
+
 async function start(): Promise<void> {
   Menu.setApplicationMenu(null);
   const host = { current: await startHost() };
@@ -109,6 +132,8 @@ async function start(): Promise<void> {
     height: 650,
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
+
+  flushSavesBeforeClosing(window);
 
   ipcMain.on("host:connection", (event) => {
     event.returnValue = host.current.connection;

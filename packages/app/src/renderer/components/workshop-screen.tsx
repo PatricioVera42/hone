@@ -21,12 +21,14 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import type { HostClient } from "@/host-client.ts";
+import type { OpenFiles } from "@/open-file.ts";
 import { EditorArea, openEditorTab } from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
 
 interface WorkshopScreenProps {
   readonly client: HostClient;
   readonly workshop: WorkshopInfo;
+  readonly openFiles: OpenFiles;
   readonly onOpenWorkshop: () => void;
   readonly onCreateWorkshop: () => void;
 }
@@ -38,6 +40,7 @@ interface WorkshopScreenProps {
 export function WorkshopScreen({
   client,
   workshop,
+  openFiles,
   onOpenWorkshop,
   onCreateWorkshop,
 }: WorkshopScreenProps) {
@@ -86,6 +89,7 @@ export function WorkshopScreen({
           <EditorArea
             key={workshop.root}
             client={client}
+            openFiles={openFiles}
             onReady={(api) => {
               editors.current = api;
             }}

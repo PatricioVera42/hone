@@ -1,6 +1,6 @@
 // End-to-end: drives the built app with Playwright (README: "End-to-end tests").
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -506,4 +506,123 @@ test("opening another workshop closes every editor tab", async () => {
   } finally {
     await electronApp.close();
   }
+});
+
+/** Launches the app on a workshop holding one file, and opens it in an editor tab. */
+async function openFileInEditor(name: string, content: string) {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await writeFile(path.join(root, name), content);
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  const page = await electronApp.firstWindow();
+  await pickFolderInDialog(electronApp, root);
+  await page.getByRole("button", { name: "Open workshop" }).click();
+  await page.getByRole("navigation", { name: "Files" }).getByRole("button", { name }).click();
+  const editor = page.getByRole("textbox", { name });
+  await expect(editor).toBeVisible();
+  return { temporary, root, file: path.join(root, name), electronApp, page, editor };
+}
+
+test("typing in a note saves it to disk shortly after", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a note rewritten on disk shows its new content in the editor", async () => {
+  const { file, electronApp, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await expect(editor).toContainText("Groups.");
+    await writeFile(file, "Fields.\n");
+    await expect(editor).toContainText("Fields.");
+    await expect(editor).not.toContainText("Groups.");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a note rewritten on disk while edits are pending shows the disk version and says the edits were discarded", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    // Well within the save delay, so the edits are still pending when the change arrives.
+    await writeFile(file, "Fields.\n");
+
+    await expect(editor).toContainText("Fields.");
+    await expect(editor).not.toContainText("Rings.");
+    await expect(
+      page.getByText("algebra.md changed on disk; your latest edits were discarded."),
+    ).toBeVisible();
+    // Nothing overwrites the disk version later on.
+    await page.waitForTimeout(1000);
+    await expect(readFile(file, "utf8")).resolves.toBe("Fields.\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("deleting an open file on disk closes its tab", async () => {
+  const { file, electronApp, page } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await rm(file);
+    await expect(page.getByRole("tab")).toHaveCount(0);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a file with CRLF line endings keeps them after an edit", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor(
+    "algebra.md",
+    "Groups.\r\nRings.\r\n",
+  );
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Fields.");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\r\nRings.\r\nFields.\r\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("switching workshops right after typing saves the edits first", async () => {
+  const { temporary, file, electronApp, page, editor } = await openFileInEditor(
+    "algebra.md",
+    "Groups.\n",
+  );
+  const work = await makeWorkshop(temporary, "work");
+  try {
+    await pickFolderInDialog(electronApp, work);
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await page.getByRole("button", { name: "studies" }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+
+    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
+    await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("closing the window right after typing saves the edits first", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  await editor.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("Rings.");
+  await electronApp.close();
+
+  await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
 });

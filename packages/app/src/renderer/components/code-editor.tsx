@@ -7,7 +7,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   EditorView,
   drawSelection,
@@ -18,8 +18,9 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
+import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
 
 // Colors come from shadcn's variables, so the editor follows the rest of the UI, light or dark.
@@ -86,31 +87,59 @@ function isNote(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
 
+// Kept as the file has them, so saving writes the same line endings back.
+function lineSeparatorFor(content: string): Extension {
+  return content.includes("\r\n") ? EditorState.lineSeparator.of("\r\n") : [];
+}
+
+// Marks a replacement with the file's content on disk, which isn't an edit to save.
+const fromDisk = Annotation.define<boolean>();
+
+/** What a mounted editor tells whoever keeps its file in sync, returned by {@link CodeEditorProps.connect}. */
+export interface EditorConnection {
+  /** Called after each edit the user makes. */
+  edited(): void;
+  /** Called when the editor unmounts. */
+  disconnect(): void;
+}
+
 interface CodeEditorProps {
   /** The file's protocol path, relative to the workshop root. */
   readonly path: string;
+  /** The content the editor starts with. Later changes come through the {@link EditorContent} given to `connect`. */
   readonly content: string;
+  /** Called once the editor is mounted, with a handle to read and replace its content. */
+  readonly connect: (editor: EditorContent) => EditorConnection;
 }
 
 /**
- * A read-only CodeMirror editor for a file's content. A note gets Markdown with GFM; any other file gets the
- * language `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
+ * A CodeMirror editor for a file's content. A note gets Markdown with GFM; any other file gets the language
+ * `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
  */
-export function CodeEditor({ path, content }: CodeEditorProps) {
+export function CodeEditor({ path, content, connect }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null);
+  // Not a dependency of the view's effect: a new callback mustn't rebuild the view and lose what's in it.
+  const connectEditor = useEffectEvent(connect);
 
   useEffect(() => {
     if (parent.current === null) return undefined;
     const language = new Compartment();
+    const lineSeparator = new Compartment();
     const note = isNote(path);
+    // Assigned once the view exists, which its listener only needs after the first edit.
+    let connection: EditorConnection | undefined;
     const view = new EditorView({
       parent: parent.current,
       state: EditorState.create({
         doc: content,
         extensions: [
-          EditorState.readOnly.of(true),
-          // Kept as the file had them, so saving writes the same line endings back.
-          content.includes("\r\n") ? EditorState.lineSeparator.of("\r\n") : [],
+          lineSeparator.of(lineSeparatorFor(content)),
+          EditorView.updateListener.of((update) => {
+            const edited = update.transactions.some(
+              (transaction) => transaction.docChanged && !transaction.annotation(fromDisk),
+            );
+            if (edited) connection?.edited();
+          }),
           indentUnit.of(detectIndentUnit(content)),
           EditorView.contentAttributes.of({ "aria-label": path }),
           highlightSpecialChars(),
@@ -122,6 +151,21 @@ export function CodeEditor({ path, content }: CodeEditorProps) {
           note ? noteExtensions : [codeExtensions, language.of([])],
         ],
       }),
+    });
+
+    connection = connectEditor({
+      // `sliceDoc` joins lines with the line separator, where `doc.toString()` would always use `\n`.
+      read: () => view.state.sliceDoc(),
+      replace: (next) => {
+        // Reconfigured first, so the new content is split into lines by its own line endings.
+        view.dispatch({ effects: lineSeparator.reconfigure(lineSeparatorFor(next)) });
+        const nextLength = view.state.toText(next).length;
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: next },
+          selection: { anchor: Math.min(view.state.selection.main.head, nextLength) },
+          annotations: fromDisk.of(true),
+        });
+      },
     });
 
     const fileName = path.slice(path.lastIndexOf("/") + 1);
@@ -136,6 +180,7 @@ export function CodeEditor({ path, content }: CodeEditorProps) {
       .catch(reportError);
     return () => {
       destroyed = true;
+      connection.disconnect();
       view.destroy();
     };
   }, [path, content]);

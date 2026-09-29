@@ -8,5 +8,10 @@ interface Window {
     /** The root of the workshop opened last, kept in Electron's `userData`. */
     getLastWorkshop(): Promise<string | undefined>;
     setLastWorkshop(root: string): Promise<void>;
+    /**
+     * Registers what main runs before the window closes: it closes once the returned promise settles, or after
+     * 2 seconds. Returns a function that unregisters it.
+     */
+    onFlushSaves(flush: () => Promise<void>): () => void;
   };
 }

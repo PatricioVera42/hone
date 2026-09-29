@@ -1,12 +1,13 @@
-import { appErrorCodes, filesReadMethod } from "@hone/protocol";
+import { appErrorCodes, filesChangedNotification, filesReadMethod } from "@hone/protocol";
 import { useEffect, useState } from "react";
 import { HostCallError, type HostClient } from "@/host-client.ts";
+import { OpenFile, type EditorContent, type OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
-import { CodeEditor } from "./code-editor.tsx";
+import { CodeEditor, type EditorConnection } from "./code-editor.tsx";
 
 type LoadState =
   | { readonly status: "loading" }
-  | { readonly status: "loaded"; readonly content: string }
+  | { readonly status: "loaded"; readonly content: string; readonly version: string }
   | { readonly status: "unopenable"; readonly message: string };
 
 /** What to tell the user about a file that can't be shown in an editor. */
@@ -24,20 +25,26 @@ function unopenableMessage(error: unknown): string {
 
 interface EditorPanelProps {
   readonly client: HostClient;
+  readonly openFiles: OpenFiles;
   /** The file's protocol path, relative to the workshop root. */
   readonly path: string;
+  /** Closes the panel's tab, for when the file is deleted. */
+  readonly onDeleted: () => void;
 }
 
-/** One editor tab's content: the file in a read-only editor, or a message when it can't be shown. */
-export function EditorPanel({ client, path }: EditorPanelProps) {
+/**
+ * One editor tab's content: the file in an editor that saves itself and follows changes on disk, or a message when
+ * it can't be shown.
+ */
+export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
     client
       .call(filesReadMethod, { path })
-      .then(({ content }) => {
-        if (!cancelled) setState({ status: "loaded", content });
+      .then(({ content, version }) => {
+        if (!cancelled) setState({ status: "loaded", content, version });
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({ status: "unopenable", message: unopenableMessage(error) });
@@ -55,5 +62,22 @@ export function EditorPanel({ client, path }: EditorPanelProps) {
       </div>
     );
   }
-  return <CodeEditor path={path} content={state.content} />;
+  const { version } = state;
+  function connect(editor: EditorContent): EditorConnection {
+    const file = new OpenFile({ client, path, version, editor, onDeleted });
+    const unsubscribe = client.onNotification(filesChangedNotification, (change) => {
+      file.receive(change);
+    });
+    const untrack = openFiles.add(file);
+    return {
+      edited: () => file.edited(),
+      disconnect: () => {
+        unsubscribe();
+        untrack();
+        // Closing a tab saves its pending edits.
+        void file.close();
+      },
+    };
+  }
+  return <CodeEditor path={path} content={state.content} connect={connect} />;
 }

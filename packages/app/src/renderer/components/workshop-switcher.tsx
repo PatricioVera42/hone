@@ -2,6 +2,7 @@ import { appErrorCodes, workshopOpenMethod, type WorkshopInfo } from "@hone/prot
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError, type HostClient } from "@/host-client.ts";
+import type { OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
 import { CreateWorkshopDialog } from "./create-workshop-dialog.tsx";
 import { NotAWorkshopDialog } from "./not-a-workshop-dialog.tsx";
@@ -10,6 +11,7 @@ import { WorkshopScreen } from "./workshop-screen.tsx";
 
 interface WorkshopSwitcherProps {
   readonly client: HostClient;
+  readonly openFiles: OpenFiles;
 }
 
 interface CreateDialogState {
@@ -50,8 +52,11 @@ async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | un
   }
 }
 
-/** Holds the open workshop, if any, and opens or creates another in its place. */
-export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
+/**
+ * Holds the open workshop, if any, and opens or creates another in its place, saving pending edits before the host
+ * switches: once it has, a late save would land on the same path in the other workshop.
+ */
+export function WorkshopSwitcher({ client, openFiles }: WorkshopSwitcherProps) {
   const [restoring, setRestoring] = useState(true);
   const [workshop, setWorkshop] = useState<WorkshopInfo>();
   const [notAWorkshopFolder, setNotAWorkshopFolder] = useState<string>();
@@ -85,6 +90,7 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
   async function openWorkshop(): Promise<void> {
     const folder = await window.hone.pickFolder();
     if (folder === undefined) return;
+    await openFiles.flush();
     try {
       show(await client.call(workshopOpenMethod, { path: folder }));
     } catch (error) {
@@ -93,8 +99,14 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
     }
   }
 
+  function showCreateDialog(initialParent: string | undefined): void {
+    // The dialog is modal, so no edit can happen between these saves and the host switching workshops.
+    void openFiles.flush();
+    setCreateDialog({ open: true, initialParent });
+  }
+
   function createWorkshop(): void {
-    setCreateDialog({ open: true, initialParent: undefined });
+    showCreateDialog(undefined);
   }
 
   // Render nothing until the last workshop is back, so the welcome screen doesn't flash first.
@@ -111,6 +123,7 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
         <WorkshopScreen
           client={client}
           workshop={workshop}
+          openFiles={openFiles}
           onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />
@@ -120,7 +133,7 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
         onClose={() => setNotAWorkshopFolder(undefined)}
         onCreateWorkshop={() => {
           setNotAWorkshopFolder(undefined);
-          setCreateDialog({ open: true, initialParent: notAWorkshopFolder });
+          showCreateDialog(notAWorkshopFolder);
         }}
       />
       <CreateWorkshopDialog
