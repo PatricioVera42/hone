@@ -3,6 +3,9 @@ import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
 import { resolveWorkshopPath } from "./workshop-path.ts";
 
+// Tool internals nobody browses, and big enough to swamp the tree.
+const hiddenNames = new Set([".git", "node_modules"]);
+
 async function entryKind(folder: string, entry: Dirent): Promise<FileEntry["kind"]> {
   if (!entry.isSymbolicLink()) return entry.isDirectory() ? "folder" : "file";
   try {
@@ -25,7 +28,7 @@ async function readFolder(folder: string, protocolPath: string): Promise<Dirent[
   }
 }
 
-/** Lists a folder of the open workshop, unsorted. Fails like {@link resolveWorkshopPath}, and with `NotFound` for a file. */
+/** Lists a folder of the open workshop, unsorted and without `.git` or `node_modules`. Fails like {@link resolveWorkshopPath}, and with `NotFound` for a file. */
 export async function listFolder(
   workshopRoot: string | undefined,
   protocolPath: string,
@@ -33,6 +36,8 @@ export async function listFolder(
   const folder = await resolveWorkshopPath(workshopRoot, protocolPath);
   const entries = await readFolder(folder, protocolPath);
   return Promise.all(
-    entries.map(async (entry) => ({ name: entry.name, kind: await entryKind(folder, entry) })),
+    entries
+      .filter((entry) => !hiddenNames.has(entry.name))
+      .map(async (entry) => ({ name: entry.name, kind: await entryKind(folder, entry) })),
   );
 }

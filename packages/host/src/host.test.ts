@@ -185,6 +185,29 @@ describe("files.list", () => {
     );
   });
 
+  it("omits .git and node_modules at any depth, but not other dot folders", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, ".git"));
+    await fs.mkdir(path.join(root, ".claude"));
+    await fs.mkdir(path.join(root, "project", "node_modules"), { recursive: true });
+    await fs.writeFile(path.join(root, "project", "package.json"), "");
+    await host.call("workshop.open", { path: root });
+
+    const rootEntries = await host.call("files.list", { path: "" });
+    expect(rootEntries).toHaveLength(3);
+    expect(rootEntries).toStrictEqual(
+      expect.arrayContaining([
+        { name: ".hone", kind: "folder" },
+        { name: ".claude", kind: "folder" },
+        { name: "project", kind: "folder" },
+      ]),
+    );
+    await expect(host.call("files.list", { path: "project" })).resolves.toStrictEqual([
+      { name: "package.json", kind: "file" },
+    ]);
+  });
+
   it("lists a nested folder by its path relative to the root", async () => {
     host = await startTestHost();
     const root = await makeWorkshop();

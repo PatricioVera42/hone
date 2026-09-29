@@ -10,7 +10,7 @@ const fileEntrySchema = z.object({
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 
 /**
- * Lists a folder's children, unsorted. `path` is relative to the open workshop's root, `""` for the root itself.
+ * Lists a folder's children, unsorted and without `.git` or `node_modules`. `path` is relative to the open workshop's root, `""` for the root itself.
  * Fails with `NoWorkshopOpen`, `OutsideWorkshop` or `NotFound`.
  */
 export const filesListMethod: MethodDefinition<{ path: string }, FileEntry[]> = {
