@@ -114,7 +114,10 @@ export async function watchWorkshop(
     if (event !== undefined && protocolPath !== "") record(protocolPath, event);
   });
   // A folder it can't read just goes unwatched; without a listener the error would take the host down.
-  watcher.on("error", () => undefined);
+  // The app forwards the host's stderr, so a tree that stops updating (e.g. out of inotify watches) leaves a trace.
+  watcher.on("error", (error) => {
+    process.stderr.write(`file watcher: ${String(error)}\n`);
+  });
   await new Promise<void>((resolve) => watcher.once("ready", () => resolve()));
 
   return {

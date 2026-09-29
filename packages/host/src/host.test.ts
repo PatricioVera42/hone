@@ -416,6 +416,30 @@ describe("files.changed", () => {
     });
     expect(fileChanges(testHost)).not.toContainEqual(expect.objectContaining({ path: "first.md" }));
   });
+  // Root reads any folder regardless of its mode, so there'd be no error to report.
+  it.skipIf(process.getuid?.() === 0)(
+    "writes a watcher error to stderr instead of dropping it",
+    async () => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      const locked = path.join(root, "locked");
+      await fs.mkdir(locked);
+      await fs.chmod(locked, 0o000);
+      let stderr = "";
+      host.process.stderr.on("data", (chunk: Buffer) => {
+        stderr += String(chunk);
+      });
+      try {
+        await host.call("workshop.open", { path: root });
+
+        await vi.waitFor(() => {
+          expect(stderr).toContain("EACCES");
+        });
+      } finally {
+        await fs.chmod(locked, 0o755);
+      }
+    },
+  );
 });
 
 describe("lifecycle", () => {
