@@ -1,4 +1,5 @@
-// Preload: the renderer's only way to reach main: the host connection, the native folder dialog and app state.
+// Preload: the renderer's only way to reach main: the host connection, the native folder dialog, app state and
+// saving pending edits before the window closes.
 import { contextBridge, ipcRenderer } from "electron";
 
 function asString(value: unknown): string {
@@ -24,5 +25,13 @@ contextBridge.exposeInMainWorld("hone", {
     asOptionalString(await ipcRenderer.invoke("state:get-last-workshop")),
   setLastWorkshop: async (root: string): Promise<void> => {
     await ipcRenderer.invoke("state:set-last-workshop", root);
+  },
+  onFlushSaves: (flush: () => Promise<void>): (() => void) => {
+    function onRequest(): void {
+      // Answers even when a save fails, so main doesn't wait out its timeout; the failure is already reported.
+      void flush().finally(() => ipcRenderer.send("window:saves-flushed"));
+    }
+    ipcRenderer.on("window:flush-saves", onRequest);
+    return () => ipcRenderer.off("window:flush-saves", onRequest);
   },
 });

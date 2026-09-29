@@ -3,6 +3,7 @@ import { HostLostOverlay } from "./components/host-lost-overlay.tsx";
 import { Toaster } from "./components/ui/toast.tsx";
 import { WorkshopSwitcher } from "./components/workshop-switcher.tsx";
 import { HostClient } from "./host-client.ts";
+import { OpenFiles } from "./open-file.ts";
 
 type HostState =
   | { readonly status: "connecting" }
@@ -11,6 +12,9 @@ type HostState =
 
 export function App() {
   const [hostState, setHostState] = useState<HostState>({ status: "connecting" });
+  const [openFiles] = useState(() => new OpenFiles());
+
+  useEffect(() => window.hone.onFlushSaves(() => openFiles.flush()), [openFiles]);
 
   useEffect(() => {
     const client = new HostClient(window.hone.getHostConnection());
@@ -26,7 +30,9 @@ export function App() {
   return (
     <>
       <Toaster />
-      {hostState.status === "connected" && <WorkshopSwitcher client={hostState.client} />}
+      {hostState.status === "connected" && (
+        <WorkshopSwitcher client={hostState.client} openFiles={openFiles} />
+      )}
       {hostState.status === "lost" && (
         <HostLostOverlay onRestart={() => void window.hone.restartHost()} />
       )}

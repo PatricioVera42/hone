@@ -5,8 +5,9 @@ import {
   type DockviewReadyEvent,
   type IDockviewPanelProps,
 } from "dockview-react";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { HostClient } from "@/host-client.ts";
+import type { OpenFiles } from "@/open-file.ts";
 import { EditorPanel } from "./editor-panel.tsx";
 
 /** An editor panel's parameters in the layout, which is what gets saved when the layout is. */
@@ -15,13 +16,26 @@ interface EditorPanelParams {
   readonly path: string;
 }
 
-// Panels are built by dockview from a component name, so the client reaches them through context, not params.
-const HostClientContext = createContext<HostClient | undefined>(undefined);
+interface EditorAreaContextValue {
+  readonly client: HostClient;
+  readonly openFiles: OpenFiles;
+}
 
-function EditorPanelFromLayout({ params }: IDockviewPanelProps<EditorPanelParams>) {
-  const client = useContext(HostClientContext);
-  if (client === undefined) throw new Error("An editor panel was rendered outside the editor area");
-  return <EditorPanel client={client} path={params.path} />;
+// Panels are built by dockview from a component name, so what they share reaches them through context, not params.
+const EditorAreaContext = createContext<EditorAreaContextValue | undefined>(undefined);
+
+function EditorPanelFromLayout({ api, params }: IDockviewPanelProps<EditorPanelParams>) {
+  const context = useContext(EditorAreaContext);
+  if (context === undefined)
+    throw new Error("An editor panel was rendered outside the editor area");
+  return (
+    <EditorPanel
+      client={context.client}
+      openFiles={context.openFiles}
+      path={params.path}
+      onDeleted={() => api.close()}
+    />
+  );
 }
 
 const components = { editor: EditorPanelFromLayout };
@@ -44,12 +58,14 @@ export function openEditorTab(editors: DockviewApi, path: string): void {
 
 interface EditorAreaProps {
   readonly client: HostClient;
+  readonly openFiles: OpenFiles;
   readonly onReady: (editors: DockviewApi) => void;
 }
 
 /** The dockview layout that holds editor tabs. Ctrl+W closes the active tab. */
-export function EditorArea({ client, onReady }: EditorAreaProps) {
+export function EditorArea({ client, openFiles, onReady }: EditorAreaProps) {
   const [editors, setEditors] = useState<DockviewApi>();
+  const context = useMemo(() => ({ client, openFiles }), [client, openFiles]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -69,11 +85,11 @@ export function EditorArea({ client, onReady }: EditorAreaProps) {
   }
 
   return (
-    <HostClientContext value={client}>
+    <EditorAreaContext value={context}>
       {/* Scopes the theme overrides in index.css, which map dockview's variables onto shadcn's. */}
       <div className="hone-editor-area h-full">
         <DockviewReact components={components} theme={themeLight} onReady={handleReady} />
       </div>
-    </HostClientContext>
+    </EditorAreaContext>
   );
 }
