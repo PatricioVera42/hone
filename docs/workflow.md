@@ -14,7 +14,7 @@ How Hone is built: planning with a human, implementation by an agent loop, check
 4. **Gate.** The Sandcastle script runs `pnpm check` itself after the agent. If it passes, it pushes the branch and opens a pull request. If it fails, the agent gets the output and fixes it in the same container, up to two times, and the pull request description lists each fix. If it still fails, nothing leaves the machine.
 5. **CI.** GitHub Actions runs `pnpm check`, the build and Playwright. Once the repo is public, a ruleset on `main` requires it to pass.
 6. **Review.** CodeRabbit reviews the pull request (free on public repos). A finding that isn't fixed in the pull request becomes an issue: comment `@coderabbitai` and ask it to create one. The new issue goes back to step 2.
-7. **Human check and merge.** Read the pull request, run `/qa-checklist`, test by hand, report problems with `/report-bug`, and merge.
+7. **Human check and merge.** Read the pull request, test by hand, report problems with `/report-bug`, and merge. A new feature with several behaviors to try gets a `/qa-checklist` issue. A bug fix or small change gets one or two manual steps in the chat instead.
 8. **Architecture.** `/improve-codebase-architecture`, by hand, every two or three days.
 
 Docs and small human changes can go straight to `main`, with the maintainer in the ruleset's bypass list. Code goes through a pull request so CI and CodeRabbit see it.
