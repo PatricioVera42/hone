@@ -35,9 +35,11 @@ function FolderContents({ client, path }: FolderContentsProps) {
         if (!cancelled) setEntries(sortEntries(listed));
       })
       .catch((error: unknown) => {
+        // A cancelled call was replaced by a newer one (StrictMode runs effects twice), which reports its own error.
+        if (cancelled) return;
         reportError(error);
         // Shows the folder as empty instead of loading forever.
-        if (!cancelled) setEntries([]);
+        setEntries([]);
       });
     return () => {
       cancelled = true;
