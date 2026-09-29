@@ -30,7 +30,9 @@ function computeTheme(element: HTMLElement): ITheme {
     foreground: compute("var(--foreground)"),
     cursor: compute("var(--foreground)"),
     cursorAccent: compute("var(--background)"),
-    selectionBackground: compute("color-mix(in oklch, var(--ring) 35%, transparent)"),
+    // Opaque, since xterm drops a translucent color it can't parse as hex or rgba(), and gives an opaque one its
+    // own transparency.
+    selectionBackground: compute("var(--ring)"),
   };
   probe.remove();
   return theme;
@@ -42,7 +44,7 @@ interface TerminalPanelProps {
   readonly cwd: string;
   /** The terminal's accessible name. */
   readonly label: string;
-  /** Called once the shell has exited. */
+  /** Called once the shell has exited, or couldn't start. */
   readonly onExit: () => void;
 }
 
@@ -136,7 +138,11 @@ export function TerminalPanel({ client, cwd, label, onExit }: TerminalPanelProps
       cleanups.push(() => observer.disconnect());
     }
 
-    start(element).catch(reportError);
+    start(element).catch((error: unknown) => {
+      reportError(error);
+      // No shell will ever run in this panel.
+      if (!isUnmounted() && id === undefined) shellExitedEvent();
+    });
     return () => {
       unmounted = true;
       for (const cleanup of cleanups) cleanup();

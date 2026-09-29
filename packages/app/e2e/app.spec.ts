@@ -843,3 +843,17 @@ test("opening another workshop closes the terminals", async () => {
     await electronApp.close();
   }
 });
+
+test("a terminal whose shell can't start closes its tab and shows the error", async () => {
+  const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    // The folder it would start in is gone, so terminal.open fails with NotFound.
+    await rm(root, { recursive: true });
+    await page.keyboard.press("Control+Backquote");
+
+    await expect(page.getByText("Something went wrong")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(0);
+  } finally {
+    await electronApp.close();
+  }
+});
