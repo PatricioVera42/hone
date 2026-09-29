@@ -52,6 +52,18 @@ export async function resolveWorkshopPath(
   return realPath;
 }
 
+/** Like {@link resolveWorkshopPath}, and fails with `NotFound` when the path isn't a folder. */
+export async function resolveWorkshopFolder(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+): Promise<string> {
+  const folder = await resolveWorkshopPath(workshopRoot, protocolPath);
+  if (!(await fs.stat(folder)).isDirectory()) {
+    throw new AppError("NotFound", `${protocolPath} is not a folder`);
+  }
+  return folder;
+}
+
 /**
  * Like {@link resolveWorkshopPath}, but resolves only the parent folder, so a symlink at the path itself is left as
  * it is, and whatever is there doesn't need to exist: for creating, renaming and deleting. Fails like

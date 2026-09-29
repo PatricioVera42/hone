@@ -9,6 +9,12 @@ import {
   filesRenameMethod,
   filesWriteMethod,
   registerMethod,
+  terminalCloseMethod,
+  terminalDataNotification,
+  terminalExitNotification,
+  terminalOpenMethod,
+  terminalResizeMethod,
+  terminalWriteMethod,
   workshopCreateMethod,
   workshopOpenMethod,
   type MethodHandler,
@@ -23,24 +29,31 @@ import {
   renameEntry,
   writeFile,
 } from "./files.ts";
+import { Terminals } from "./terminals.ts";
 import { watchWorkshop, type WorkshopWatcher } from "./watch-workshop.ts";
 import { createWorkshop, openWorkshop } from "./workshop.ts";
+import { resolveWorkshopFolder } from "./workshop-path.ts";
 
 export interface Connection {
   readonly handlers: MethodHandler[];
-  /** Stops watching the open workshop, for when the socket closes. */
+  /** Stops watching the open workshop and kills the connection's terminals, for when the socket closes. */
   close(): Promise<void>;
 }
 
 /**
  * The state for one connection. Each window has its own, so each keeps its own open workshop, watched for
- * changes that `send` delivers as `files.changed` notifications.
+ * changes that `send` delivers as `files.changed` notifications, and its own terminals.
  */
 export function createConnection(send: (message: string) => void): Connection {
   let workshopRoot: string | undefined;
   let watcher: WorkshopWatcher | undefined;
   let opens = 0;
   let closed = false;
+  const terminals = new Terminals({
+    data: (id, data) => send(encodeNotification(terminalDataNotification, { id, data })),
+    // Also for terminals killed because the socket closed, while it's still open enough to send.
+    exit: (id, exitCode) => send(encodeNotification(terminalExitNotification, { id, exitCode })),
+  });
 
   // Replies only once the watcher is ready, so the app sees every change made after the workshop opened.
   async function open(workshop: WorkshopInfo): Promise<WorkshopInfo> {
@@ -57,6 +70,8 @@ export function createConnection(send: (message: string) => void): Connection {
     const previous = watcher;
     watcher = next;
     workshopRoot = workshop.root;
+    // Their folders belong to the workshop that's no longer open.
+    terminals.closeAll();
     await previous?.close();
     return workshop;
   }
@@ -76,9 +91,25 @@ export function createConnection(send: (message: string) => void): Connection {
       registerMethod(filesWriteMethod, ({ path, content, baseVersion }) =>
         writeFile(workshopRoot, path, content, baseVersion),
       ),
+      registerMethod(terminalOpenMethod, async ({ cwd, cols, rows }) => ({
+        id: terminals.open(await resolveWorkshopFolder(workshopRoot, cwd), cols, rows),
+      })),
+      registerMethod(terminalWriteMethod, ({ id, data }) => {
+        terminals.write(id, data);
+        return null;
+      }),
+      registerMethod(terminalResizeMethod, ({ id, cols, rows }) => {
+        terminals.resize(id, cols, rows);
+        return null;
+      }),
+      registerMethod(terminalCloseMethod, ({ id }) => {
+        terminals.close(id);
+        return null;
+      }),
     ],
     close: async () => {
       closed = true;
+      terminals.closeAll();
       await watcher?.close();
       watcher = undefined;
     },
