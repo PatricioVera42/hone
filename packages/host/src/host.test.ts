@@ -154,6 +154,121 @@ describe("workshop.create", () => {
   });
 });
 
+describe("files.list", () => {
+  it("fails with NoWorkshopOpen before a workshop is open", async () => {
+    host = await startTestHost();
+
+    await expect(host.call("files.list", { path: "" })).rejects.toMatchObject({
+      code: -32008,
+    });
+  });
+
+  it("lists the root's files and folders, a symlink taking its target's kind", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "");
+    await fs.mkdir(path.join(root, "project"));
+    await fs.symlink(path.join(root, "project"), path.join(root, "project-link"));
+    await fs.symlink(path.join(root, "missing"), path.join(root, "broken-link"));
+    await host.call("workshop.open", { path: root });
+
+    const entries = await host.call("files.list", { path: "" });
+    expect(entries).toHaveLength(5);
+    expect(entries).toStrictEqual(
+      expect.arrayContaining([
+        { name: ".hone", kind: "folder" },
+        { name: "note.md", kind: "file" },
+        { name: "project", kind: "folder" },
+        { name: "project-link", kind: "folder" },
+        { name: "broken-link", kind: "file" },
+      ]),
+    );
+  });
+
+  it("lists a nested folder by its path relative to the root", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "a", "b"), { recursive: true });
+    await fs.writeFile(path.join(root, "a", "b", "note.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.list", { path: "a/b" })).resolves.toStrictEqual([
+      { name: "note.md", kind: "file" },
+    ]);
+  });
+
+  it("fails with NotFound for a folder that doesn't exist", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.list", { path: "missing" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it("fails with NotFound for a file", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.list", { path: "note.md" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it.each(["..", "a/../..", "/etc"])(
+    "fails with OutsideWorkshop for %j, even if it exists",
+    async (outsidePath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await fs.mkdir(path.join(root, "a"));
+      await host.call("workshop.open", { path: root });
+
+      await expect(host.call("files.list", { path: outsidePath })).rejects.toMatchObject({
+        code: -32004,
+      });
+    },
+  );
+
+  it("fails with OutsideWorkshop through a symlink to a folder outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "hone-outside-"));
+    await fs.symlink(outside, path.join(root, "escape"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.list", { path: "escape" })).rejects.toMatchObject({
+      code: -32004,
+    });
+  });
+
+  it("lists a workshop the connection just created", async () => {
+    host = await startTestHost();
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), "hone-parent-"));
+    await host.call("workshop.create", { parent, name: "fresh" });
+
+    await expect(host.call("files.list", { path: "" })).resolves.toStrictEqual([
+      { name: ".hone", kind: "folder" },
+    ]);
+  });
+
+  it("lists the workshop that the connection opened last", async () => {
+    host = await startTestHost();
+    const first = await makeWorkshop();
+    const second = await makeWorkshop();
+    await fs.writeFile(path.join(second, "note.md"), "");
+    await host.call("workshop.open", { path: first });
+    await host.call("workshop.open", { path: second });
+
+    await expect(host.call("files.list", { path: "" })).resolves.toContainEqual({
+      name: "note.md",
+      kind: "file",
+    });
+  });
+});
+
 describe("lifecycle", () => {
   it("exits when its stdin closes", async () => {
     const spawned = await spawnHost();

@@ -1,9 +1,9 @@
-import { handleJsonRpcMessage, hostReadyLine } from "@hone/protocol";
+import { handleJsonRpcMessage, hostReadyLine, type MethodHandler } from "@hone/protocol";
 import { createServer } from "node:http";
 import readline from "node:readline";
 import { URL } from "node:url";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
-import { handlers } from "./handlers.ts";
+import { createHandlers } from "./handlers.ts";
 import { rawDataToText } from "./raw-data-text.ts";
 
 function readToken(): Promise<string> {
@@ -16,7 +16,11 @@ function readToken(): Promise<string> {
   });
 }
 
-async function respond(socket: WebSocket, data: RawData): Promise<void> {
+async function respond(
+  socket: WebSocket,
+  handlers: readonly MethodHandler[],
+  data: RawData,
+): Promise<void> {
   const response = await handleJsonRpcMessage(rawDataToText(data), handlers);
   socket.send(response);
 }
@@ -36,8 +40,9 @@ async function main(): Promise<void> {
   });
 
   wss.on("connection", (socket) => {
+    const handlers = createHandlers();
     socket.on("message", (data: RawData) => {
-      void respond(socket, data);
+      void respond(socket, handlers, data);
     });
   });
 
