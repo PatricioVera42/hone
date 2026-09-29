@@ -26,6 +26,15 @@ if (!state.split(" ").includes("OPEN") || !state.split(" ").includes("ready-for-
 }
 
 const branch = `agent/issue-${issue}`;
+// How many times a failing `pnpm check` goes back to the agent before the harness gives up.
+const maxFixAttempts = 2;
+// The tail of the failing output the agent sees; the end holds the errors and the summary line.
+const checkOutputChars = 20_000;
+
+function lastSummary(stdout: string): string {
+  return [...stdout.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].at(-1)?.[1]?.trim() ?? "";
+}
+
 const sandbox = await createSandbox({
   branch,
   sandbox: docker({
@@ -58,15 +67,34 @@ try {
     },
     logging: { type: "stdout" },
   });
-  const summary =
-    [...result.stdout.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].at(-1)?.[1]?.trim() ?? "";
+  const summary = lastSummary(result.stdout);
   process.stdout.write(`\nAgent summary:\n${summary || "(none)"}\n`);
 
   if (result.commits.length === 0) {
     process.stderr.write("The agent made no commits. Nothing to push.\n");
     process.exitCode = 1;
   } else {
-    const check = await sandbox.exec("pnpm check");
+    const fixes: string[] = [];
+    // Runs the gate; a failure goes back to the agent, in the same container, until it passes or attempts run out.
+    const gate = async (attempt: number): Promise<Awaited<ReturnType<typeof sandbox.exec>>> => {
+      const check = await sandbox.exec("pnpm check");
+      if (check.exitCode === 0 || attempt > maxFixAttempts) return check;
+      process.stderr.write(
+        `pnpm check failed; fix attempt ${String(attempt)} of ${String(maxFixAttempts)}.\n`,
+      );
+      const fix = await sandbox.run({
+        agent: claudeCode("claude-opus-5-5"),
+        promptFile: ".sandcastle/fix-check.md",
+        promptArgs: {
+          ISSUE_NUMBER: issue,
+          CHECK_OUTPUT: `${check.stdout}\n${check.stderr}`.slice(-checkOutputChars),
+        },
+        logging: { type: "stdout" },
+      });
+      fixes.push(lastSummary(fix.stdout) || "(no summary)");
+      return gate(attempt + 1);
+    };
+    const check = await gate(1);
     if (check.exitCode === 0) {
       execFileSync("git", ["push", "--set-upstream", "origin", branch], { stdio: "inherit" });
       const title = gh("issue", "view", issue, "--json", "title", "--jq", ".title");
@@ -80,7 +108,11 @@ try {
         "--title",
         title,
         "--body",
-        `Closes #${issue}\n\n${summary}`,
+        [
+          `Closes #${issue}`,
+          summary,
+          ...fixes.map((fix, index) => `Gate fix ${String(index + 1)}: ${fix}`),
+        ].join("\n\n"),
       );
       process.stdout.write(`Pull request: ${url}\n`);
     } else {
