@@ -336,3 +336,95 @@ test("a folder that can't be listed shows an error and stops loading", async () 
     await electronApp.close();
   }
 });
+
+/** Resizes the app's window from main, the way a user snapping it to half a screen would. */
+async function resizeWindow(electronApp: ElectronApplication, width: number, height: number) {
+  await electronApp.evaluate(
+    ({ BrowserWindow }, size) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height);
+    },
+    { width, height },
+  );
+}
+
+test("the sidebar and its file tree stay visible in a narrow window", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+
+    await resizeWindow(electronApp, 600, 600);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(768);
+    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await expect(tree.getByRole("button", { name: ".hone" })).toBeInViewport();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("the sidebar toggle hides and shows the sidebar, keeping expanded folders", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await mkdir(path.join(root, "Math"));
+  await writeFile(path.join(root, "Math", "algebra.md"), "");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await tree.getByRole("button", { name: "Math" }).click();
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeInViewport();
+
+    const toggle = page.getByRole("button", { name: "Toggle Sidebar" });
+    await toggle.click();
+    await expect(page.getByRole("button", { name: "studies" })).not.toBeInViewport();
+
+    await toggle.click();
+    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+    await expect(tree.getByRole("button", { name: "Math" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeInViewport();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("resizing the window across the old mobile width keeps expanded folders", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await mkdir(path.join(root, "Math"));
+  await writeFile(path.join(root, "Math", "algebra.md"), "");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await tree.getByRole("button", { name: "Math" }).click();
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeInViewport();
+
+    await resizeWindow(electronApp, 600, 600);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(768);
+    await resizeWindow(electronApp, 1000, 650);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeGreaterThanOrEqual(768);
+
+    await expect(tree.getByRole("button", { name: "Math" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeInViewport();
+  } finally {
+    await electronApp.close();
+  }
+});

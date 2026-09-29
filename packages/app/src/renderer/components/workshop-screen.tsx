@@ -16,6 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import type { HostClient } from "@/host-client.ts";
 import { FileTree } from "./file-tree.tsx";
@@ -27,7 +28,10 @@ interface WorkshopScreenProps {
   readonly onCreateWorkshop: () => void;
 }
 
-/** The open workshop: a fixed left sidebar (Ctrl+B toggles it) with the file tree, whose header menu switches workshops. */
+/**
+ * The open workshop: a fixed left sidebar with the file tree, whose header menu switches workshops.
+ * The toggle button in the bar above the content area, or Ctrl+B, opens and closes it.
+ */
 export function WorkshopScreen({
   client,
   workshop,
@@ -61,7 +65,12 @@ export function WorkshopScreen({
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
-      <SidebarInset />
+      <SidebarInset>
+        {/* Stays visible with the sidebar closed, so there's always a way to reopen it besides Ctrl+B. */}
+        <header className="flex h-10 shrink-0 items-center px-2">
+          <SidebarTrigger />
+        </header>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
