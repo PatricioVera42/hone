@@ -14,7 +14,9 @@ export {
 export {
   filesChangedNotification,
   filesListMethod,
+  filesReadMethod,
   type FileChange,
+  type FileContent,
   type FileEntry,
 } from "./methods/files.ts";
 export { workshopCreateMethod, workshopOpenMethod, type WorkshopInfo } from "./methods/workshop.ts";

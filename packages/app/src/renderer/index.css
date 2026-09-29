@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "dockview-react/dist/styles/dockview.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -81,6 +82,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Code editors' font until the terminal ticket bundles the Nerd Font and switches this over. */
+  --font-code:
+    ui-monospace, "Cascadia Code", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", Menlo,
+    Consolas, monospace;
 }
 
 .dark {
@@ -115,6 +120,29 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* dockview's theme variables, derived from shadcn's so the editor area follows the UI, light or dark. */
+.hone-editor-area .dockview-theme-light {
+  color-scheme: inherit;
+  --dv-group-view-background-color: var(--background);
+  --dv-tabs-and-actions-container-background-color: var(--muted);
+  --dv-tabs-and-actions-container-font-size: 0.8125rem;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--background);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--muted);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--background);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--muted);
+  --dv-activegroup-visiblepanel-tab-color: var(--foreground);
+  --dv-activegroup-hiddenpanel-tab-color: var(--muted-foreground);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--muted-foreground);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--muted-foreground);
+  --dv-tab-divider-color: var(--border);
+  --dv-separator-border: var(--border);
+  --dv-paneview-header-border-color: var(--border);
+  --dv-paneview-active-outline-color: var(--ring);
+  --dv-icon-hover-background-color: var(--accent);
+  --dv-drag-over-background-color: color-mix(in oklch, var(--accent) 60%, transparent);
+  --dv-scrollbar-background-color: color-mix(in oklch, var(--foreground) 25%, transparent);
 }
 
 @layer base {

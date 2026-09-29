@@ -294,6 +294,90 @@ describe("files.list", () => {
   });
 });
 
+describe("files.read", () => {
+  it("returns the content with its original line endings, and the SHA-256 hex of its bytes as the version", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "notes"));
+    await fs.writeFile(path.join(root, "notes", "hello.md"), "hello\r\nworld\r\n");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "notes/hello.md" })).resolves.toStrictEqual({
+      content: "hello\r\nworld\r\n",
+      version: "8f9e99332aa14be2fd8e6e7052c0a42ecedf771020a3293170dfefa344da59ac",
+    });
+  });
+
+  it("fails with TooLarge for a file over 5 MB", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "big.txt"), Buffer.alloc(5 * 1024 * 1024 + 1, "a"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "big.txt" })).rejects.toMatchObject({
+      code: -32007,
+    });
+  });
+
+  it("fails with NotText for a file with a NUL byte in its first 8 KB", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "image.png"), Buffer.from([0x89, 0x50, 0x00, 0x47]));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "image.png" })).rejects.toMatchObject({
+      code: -32006,
+    });
+  });
+
+  it("fails with NotFound for a file that doesn't exist", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "missing.md" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it("fails with NotFound for a folder", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "notes"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "notes" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it.each(["../secret.md", "/etc/hostname"])(
+    "fails with OutsideWorkshop for %j",
+    async (outsidePath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await host.call("workshop.open", { path: root });
+
+      await expect(host.call("files.read", { path: outsidePath })).rejects.toMatchObject({
+        code: -32004,
+      });
+    },
+  );
+
+  it("fails with OutsideWorkshop through a symlink to a file outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "hone-outside-"));
+    await fs.writeFile(path.join(outside, "secret.md"), "secret");
+    await fs.symlink(path.join(outside, "secret.md"), path.join(root, "escape.md"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.read", { path: "escape.md" })).rejects.toMatchObject({
+      code: -32004,
+    });
+  });
+});
+
 /** The `files.changed` notifications received so far, as their params. */
 function fileChanges(testHost: TestHost): unknown[] {
   return testHost.notifications

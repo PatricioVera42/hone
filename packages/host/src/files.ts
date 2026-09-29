@@ -1,6 +1,7 @@
-import { AppError, type FileEntry } from "@hone/protocol";
+import { AppError, type FileContent, type FileEntry } from "@hone/protocol";
 import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
+import { inspectFile } from "./inspect-file.ts";
 import { resolveWorkshopPath } from "./workshop-path.ts";
 
 // Tool internals nobody browses, and big enough to swamp the tree.
@@ -40,4 +41,24 @@ export async function listFolder(
       .filter((entry) => !hiddenNames.has(entry.name))
       .map(async (entry) => ({ name: entry.name, kind: await entryKind(folder, entry) })),
   );
+}
+
+/**
+ * Reads a text file of the open workshop as UTF-8, keeping its line endings. Fails like {@link resolveWorkshopPath},
+ * with `NotFound` for a folder, `TooLarge` above 5 MB and `NotText` for a binary file, by {@link inspectFile}'s rules.
+ */
+export async function readFile(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+): Promise<FileContent> {
+  const file = await resolveWorkshopPath(workshopRoot, protocolPath);
+  if (!(await fs.stat(file)).isFile()) {
+    throw new AppError("NotFound", `${protocolPath} is not a file`);
+  }
+  const inspection = await inspectFile(file);
+  if (!inspection.withinSizeLimit) {
+    throw new AppError("TooLarge", `${protocolPath} is larger than 5 MB`);
+  }
+  if (!inspection.text) throw new AppError("NotText", `${protocolPath} is not a text file`);
+  return { content: inspection.content, version: inspection.version };
 }
