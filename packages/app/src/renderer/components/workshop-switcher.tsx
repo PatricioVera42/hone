@@ -109,6 +109,7 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
         />
       ) : (
         <WorkshopScreen
+          client={client}
           workshop={workshop}
           onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
