@@ -28,14 +28,13 @@ function openWorkshop(connection: Connection, root: string): Promise<unknown> {
 
 /** Makes `SHELL` a shell that appends its process id to the returned file, so a test can find shells it has no id for. */
 async function stubRecordingShell(): Promise<string> {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "hone-home-"));
-  const pidsFile = path.join(home, "pids");
-  const shell = path.join(home, "shell.sh");
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), "hone-shell-"));
+  const pidsFile = path.join(folder, "pids");
+  const shell = path.join(folder, "shell.sh");
   await fs.writeFile(shell, `#!/bin/sh\necho $$ >> '${pidsFile}'\nexec /bin/bash "$@"\n`, {
     mode: 0o755,
   });
   vi.stubEnv("SHELL", shell);
-  vi.stubEnv("HOME", home);
   return pidsFile;
 }
 

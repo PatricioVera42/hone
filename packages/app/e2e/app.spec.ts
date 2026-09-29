@@ -847,7 +847,8 @@ test("opening another workshop closes the terminals", async () => {
 test("a terminal whose shell can't start closes its tab and shows the error", async () => {
   const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
-    // The folder it would start in is gone, so terminal.open fails with NotFound.
+    // The folder it would start in is gone, so terminal.open fails with NotFound. The file tree can fail the same way,
+    // so the error alone doesn't prove the tab opened and closed; without the fix the tab stays open, which this catches.
     await rm(root, { recursive: true });
     await page.keyboard.press("Control+Backquote");
 

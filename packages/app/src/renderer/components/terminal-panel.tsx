@@ -15,8 +15,8 @@ import { reportError } from "@/report-error.ts";
 const fontSize = 13;
 
 /**
- * xterm's theme, from shadcn's variables where the terminal is, like the code editors' colors. xterm parses any CSS
- * color, but not `var()`, so each one is computed first.
+ * xterm's theme, from shadcn's variables where the terminal is, like the code editors' colors. xterm can't resolve
+ * `var()`, so each one is computed first.
  */
 function computeTheme(element: HTMLElement): ITheme {
   const probe = document.createElement("span");
