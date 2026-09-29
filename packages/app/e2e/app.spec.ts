@@ -1,6 +1,6 @@
 // End-to-end: drives the built app with Playwright (README: "End-to-end tests").
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -625,4 +625,149 @@ test("closing the window right after typing saves the edits first", async () => 
   await electronApp.close();
 
   await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
+});
+
+/** Launches the app on a new workshop that `setUp` fills first, and opens it. */
+async function openWorkshopWith(setUp: (root: string) => Promise<void>) {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await setUp(root);
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  const page = await electronApp.firstWindow();
+  await pickFolderInDialog(electronApp, root);
+  await page.getByRole("button", { name: "Open workshop" }).click();
+  const tree = page.getByRole("navigation", { name: "Files" });
+  await expect(tree.getByRole("button", { name: ".hone" })).toBeVisible();
+  return { root, electronApp, page, tree };
+}
+
+test("New note on a folder creates the note with .md appended and opens it", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    mkdir(path.join(workshop, "math")),
+  );
+  try {
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "New note" }).click();
+    await tree.getByRole("textbox", { name: "Name" }).fill("idea");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByRole("tab", { name: "idea.md" })).toBeVisible();
+    await expect(tree.getByRole("button", { name: "idea.md" })).toBeVisible();
+    await expect(readFile(path.join(root, "math", "idea.md"), "utf8")).resolves.toBe("");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a name that already exists shows an error under the row and creates nothing", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    writeFile(path.join(workshop, "idea.md"), "Taken."),
+  );
+  try {
+    // The empty space below the last row stands for the workshop root.
+    const box = await tree.boundingBox();
+    await tree.click({ button: "right", position: { x: 10, y: (box?.height ?? 0) - 10 } });
+    await page.getByRole("menuitem", { name: "New file" }).click();
+    const name = tree.getByRole("textbox", { name: "Name" });
+    await name.fill("idea.md");
+    await name.press("Enter");
+
+    await expect(tree.getByRole("alert")).toHaveText("idea.md already exists in this folder.");
+    await expect(name).toBeVisible();
+    await expect(readFile(path.join(root, "idea.md"), "utf8")).resolves.toBe("Taken.");
+
+    await name.press("Escape");
+    await expect(name).toBeHidden();
+    await expect(readdir(root)).resolves.toHaveLength(2);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("F2 on an open file renames it on disk and in its tab", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    writeFile(path.join(workshop, "idea.md"), "Groups.\n"),
+  );
+  try {
+    await tree.getByRole("button", { name: "idea.md" }).click();
+    await expect(page.getByRole("tab", { name: "idea.md" })).toBeVisible();
+
+    await tree.getByRole("button", { name: "idea.md" }).press("F2");
+    const name = tree.getByRole("textbox", { name: "Name" });
+    await expect(name).toHaveValue("idea.md");
+    await name.fill("plan.md");
+    await name.press("Enter");
+
+    await expect(page.getByRole("tab", { name: "plan.md" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(tree.getByRole("button", { name: "plan.md" })).toBeVisible();
+    await expect(readdir(root)).resolves.not.toContain("idea.md");
+    await expect(readFile(path.join(root, "plan.md"), "utf8")).resolves.toBe("Groups.\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("renaming a folder keeps its open files' tabs, saving to their new paths", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "math"));
+    await writeFile(path.join(workshop, "math", "algebra.md"), "Groups.\n");
+  });
+  try {
+    await tree.getByRole("button", { name: "math" }).click();
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    const name = tree.getByRole("textbox", { name: "Name" });
+    await name.fill("maths");
+    await name.press("Enter");
+    await expect(tree.getByRole("button", { name: "maths" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeVisible();
+
+    // Leaves time for the watcher's deletion of the old paths, which mustn't close the tab.
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await page.getByRole("textbox", { name: "maths/algebra.md" }).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await expect
+      .poll(() => readFile(path.join(root, "maths", "algebra.md"), "utf8"))
+      .toBe("Groups.\nRings.");
+    await expect(readdir(root)).resolves.not.toContain("math");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("deleting a folder says how many files it holds, and confirming removes it and closes its tabs", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "math", "algebra"), { recursive: true });
+    await writeFile(path.join(workshop, "math", "groups.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "math", ".hidden"), "");
+    await writeFile(path.join(workshop, "math", "algebra", "rings.md"), "");
+    await writeFile(path.join(workshop, "other.md"), "");
+  });
+  try {
+    await tree.getByRole("button", { name: "math" }).click();
+    await tree.getByRole("button", { name: "groups.md" }).click();
+    await tree.getByRole("button", { name: "other.md" }).click();
+    await expect(page.getByRole("tab")).toHaveCount(2);
+
+    await tree.getByRole("button", { name: "math" }).press("Delete");
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText("3 files");
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    await expect(page.getByRole("tab", { name: "groups.md" })).toBeHidden();
+    await expect(page.getByRole("tab", { name: "other.md" })).toBeVisible();
+    await expect(tree.getByRole("button", { name: "math" })).toBeHidden();
+    await expect(readdir(root)).resolves.not.toContain("math");
+  } finally {
+    await electronApp.close();
+  }
 });

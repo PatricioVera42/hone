@@ -3,17 +3,27 @@ import {
   themeLight,
   type DockviewApi,
   type DockviewReadyEvent,
+  type IDockviewPanel,
   type IDockviewPanelProps,
 } from "dockview-react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { z } from "zod";
+import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import type { HostClient } from "@/host-client.ts";
 import type { OpenFiles } from "@/open-file.ts";
 import { EditorPanel } from "./editor-panel.tsx";
 
+const editorPanelParamsSchema = z.object({
+  /** The file's protocol path, relative to the workshop root. It changes when the file or a folder above it is renamed. */
+  path: z.string(),
+});
+
 /** An editor panel's parameters in the layout, which is what gets saved when the layout is. */
-interface EditorPanelParams {
-  /** The file's protocol path, relative to the workshop root. */
-  readonly path: string;
+type EditorPanelParams = z.infer<typeof editorPanelParamsSchema>;
+
+/** The protocol path of the file a panel shows, from its parameters. */
+function panelPath(panel: IDockviewPanel): string | undefined {
+  return editorPanelParamsSchema.safeParse(panel.params).data?.path;
 }
 
 interface EditorAreaContextValue {
@@ -46,14 +56,35 @@ function fileName(path: string): string {
 
 /** Opens a file in the active group, or focuses its tab if it's already open anywhere. */
 export function openEditorTab(editors: DockviewApi, path: string): void {
-  // A file's path is its panel's id, which is what keeps it to one tab.
-  const existing = editors.getPanel(path);
+  const existing = editors.panels.find((panel) => panelPath(panel) === path);
   if (existing !== undefined) {
     existing.api.setActive();
     return;
   }
   const params: EditorPanelParams = { path };
-  editors.addPanel({ id: path, component: "editor", title: fileName(path), params });
+  // Not the path, which a rename changes while a panel's id stays.
+  const id = crypto.randomUUID();
+  editors.addPanel({ id, component: "editor", title: fileName(path), params });
+}
+
+/** Points the tabs of the entry renamed from `from`, or of files inside it, at their new paths. */
+export function renameEditorTabs(editors: DockviewApi, from: string, to: string): void {
+  for (const panel of editors.panels) {
+    const path = panelPath(panel);
+    const renamed = path === undefined ? undefined : renamedPath(path, from, to);
+    if (renamed === undefined) continue;
+    const params: EditorPanelParams = { path: renamed };
+    panel.api.updateParameters(params);
+    panel.api.setTitle(fileName(renamed));
+  }
+}
+
+/** Closes the tabs of the deleted entry at `path`, or of files inside it. */
+export function closeEditorTabs(editors: DockviewApi, path: string): void {
+  for (const panel of editors.panels) {
+    const shown = panelPath(panel);
+    if (shown !== undefined && isAtOrInside(shown, path)) panel.api.close();
+  }
 }
 
 interface EditorAreaProps {

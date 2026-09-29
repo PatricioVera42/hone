@@ -26,7 +26,7 @@ function unopenableMessage(error: unknown): string {
 interface EditorPanelProps {
   readonly client: HostClient;
   readonly openFiles: OpenFiles;
-  /** The file's protocol path, relative to the workshop root. */
+  /** The file's protocol path, relative to the workshop root. A rename changes it while the tab stays open. */
   readonly path: string;
   /** Closes the panel's tab, for when the file is deleted. */
   readonly onDeleted: () => void;
@@ -38,11 +38,13 @@ interface EditorPanelProps {
  */
 export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Read once, from where the file was when its tab opened: a rename moves the open file along instead.
+  const [openedPath] = useState(path);
 
   useEffect(() => {
     let cancelled = false;
     client
-      .call(filesReadMethod, { path })
+      .call(filesReadMethod, { path: openedPath })
       .then(({ content, version }) => {
         if (!cancelled) setState({ status: "loaded", content, version });
       })
@@ -52,7 +54,7 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
     return () => {
       cancelled = true;
     };
-  }, [client, path]);
+  }, [client, openedPath]);
 
   if (state.status === "loading") return null;
   if (state.status === "unopenable") {
@@ -64,7 +66,7 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
   }
   const { version } = state;
   function connect(editor: EditorContent): EditorConnection {
-    const file = new OpenFile({ client, path, version, editor, onDeleted });
+    const file = new OpenFile({ client, path: openedPath, version, editor, onDeleted });
     const unsubscribe = client.onNotification(filesChangedNotification, (change) => {
       file.receive(change);
     });
@@ -79,5 +81,5 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
       },
     };
   }
-  return <CodeEditor path={path} content={state.content} connect={connect} />;
+  return <CodeEditor path={openedPath} label={path} content={state.content} connect={connect} />;
 }

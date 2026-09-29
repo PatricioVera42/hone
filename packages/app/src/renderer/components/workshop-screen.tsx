@@ -1,4 +1,4 @@
-import type { WorkshopInfo } from "@hone/protocol";
+import { filesDeleteMethod, filesRenameMethod, type WorkshopInfo } from "@hone/protocol";
 import type { DockviewApi } from "dockview-react";
 import { useRef } from "react";
 import {
@@ -11,7 +11,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -22,7 +21,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import type { HostClient } from "@/host-client.ts";
 import type { OpenFiles } from "@/open-file.ts";
-import { EditorArea, openEditorTab } from "./editor-area.tsx";
+import { closeEditorTabs, EditorArea, openEditorTab, renameEditorTabs } from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
 
 interface WorkshopScreenProps {
@@ -46,6 +45,22 @@ export function WorkshopScreen({
 }: WorkshopScreenProps) {
   const editors = useRef<DockviewApi>(undefined);
 
+  async function renameEntry(from: string, to: string): Promise<void> {
+    // Saved first, so no save is on its way to the old path while the file moves.
+    await openFiles.flush();
+    await client.call(filesRenameMethod, { from, to });
+    // Before the watcher reports the old paths as deleted, which would otherwise close their tabs.
+    openFiles.renamed(from, to);
+    if (editors.current !== undefined) renameEditorTabs(editors.current, from, to);
+  }
+
+  async function deleteEntry(path: string): Promise<void> {
+    await client.call(filesDeleteMethod, { path });
+    // Dropped first, so closing the tabs doesn't try to save them to files that are gone.
+    openFiles.deleted(path);
+    if (editors.current !== undefined) closeEditorTabs(editors.current, path);
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -67,16 +82,16 @@ export function WorkshopScreen({
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
-          <SidebarGroup>
-            {/* Keyed by root, so opening another workshop starts a fresh tree with nothing expanded. */}
-            <FileTree
-              key={workshop.root}
-              client={client}
-              onOpenFile={(path) => {
-                if (editors.current !== undefined) openEditorTab(editors.current, path);
-              }}
-            />
-          </SidebarGroup>
+          {/* Keyed by root, so opening another workshop starts a fresh tree with nothing expanded. */}
+          <FileTree
+            key={workshop.root}
+            client={client}
+            onOpenFile={(path) => {
+              if (editors.current !== undefined) openEditorTab(editors.current, path);
+            }}
+            onRename={renameEntry}
+            onDelete={deleteEntry}
+          />
         </SidebarContent>
       </Sidebar>
       <SidebarInset>

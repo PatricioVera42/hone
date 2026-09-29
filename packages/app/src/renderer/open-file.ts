@@ -1,6 +1,7 @@
 import { appErrorCodes, filesReadMethod, filesWriteMethod, type FileChange } from "@hone/protocol";
 import { toast } from "@/components/ui/toast.tsx";
 import { decideOpenFileAction, type OpenFileAction } from "@/decide-open-file-action.ts";
+import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
 
@@ -16,7 +17,7 @@ export interface EditorContent {
 
 interface OpenFileOptions {
   readonly client: HostClient;
-  /** The file's protocol path, relative to the workshop root. */
+  /** The file's protocol path when it opened, relative to the workshop root. */
   readonly path: string;
   /** The version the editor's content was read at. */
   readonly version: string;
@@ -36,6 +37,7 @@ function isHostError(error: unknown, code: number): boolean {
  */
 export class OpenFile {
   private readonly options: OpenFileOptions;
+  private path: string;
   private version: string;
   private pendingEdits = false;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -44,6 +46,7 @@ export class OpenFile {
 
   constructor(options: OpenFileOptions) {
     this.options = options;
+    this.path = options.path;
     this.version = options.version;
   }
 
@@ -67,10 +70,20 @@ export class OpenFile {
 
   /** Handles a `files.changed`, ignoring changes to other paths. */
   receive(change: FileChange): void {
-    if (change.path !== this.options.path) return;
+    if (change.path !== this.path) return;
     void this.enqueue(() =>
       this.apply(decideOpenFileAction(this.state(), { kind: "change", change })),
     );
+  }
+
+  /** Follows a rename of the file or a folder above it, so later saves and changes use its new path. */
+  renamed(from: string, to: string): void {
+    this.path = renamedPath(this.path, from, to) ?? this.path;
+  }
+
+  /** Drops pending edits if the file, or a folder above it, was deleted: there's nothing left to save them to. */
+  deleted(path: string): void {
+    if (isAtOrInside(this.path, path)) this.dropPendingEdits();
   }
 
   /** Saves pending edits and stops touching the editor, for when its tab closes. */
@@ -96,7 +109,8 @@ export class OpenFile {
 
   private async save(): Promise<void> {
     if (!this.pendingEdits) return;
-    const { client, path, editor } = this.options;
+    const { client, editor } = this.options;
+    const { path } = this;
     const content = editor.read();
     this.pendingEdits = false;
     try {
@@ -125,7 +139,8 @@ export class OpenFile {
     }
     let discarded = action === "reloadDiscardingEdits";
     if (discarded) this.dropPendingEdits();
-    const { client, path, editor } = this.options;
+    const { client, editor } = this.options;
+    const { path } = this;
     let file;
     try {
       file = await client.call(filesReadMethod, { path });
@@ -157,6 +172,16 @@ export class OpenFiles {
   add(file: OpenFile): () => void {
     this.files.add(file);
     return () => this.files.delete(file);
+  }
+
+  /** Tells every file that the entry at `from` was renamed to `to`. */
+  renamed(from: string, to: string): void {
+    for (const file of this.files) file.renamed(from, to);
+  }
+
+  /** Tells every file that the entry at `path` was deleted. */
+  deleted(path: string): void {
+    for (const file of this.files) file.deleted(path);
   }
 
   /** Saves every file's pending edits. Resolves once all the saves are done. */
