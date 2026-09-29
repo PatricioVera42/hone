@@ -3,6 +3,7 @@ export const hostReadyLine = "HONE_HOST_READY";
 
 export { AppError, appErrorCodes, type AppErrorName } from "./errors.ts";
 export {
+  encodeNotification,
   handleJsonRpcMessage,
   jsonRpcErrorCodes,
   registerMethod,
@@ -10,6 +11,11 @@ export {
   type MethodHandler,
   type NotificationDefinition,
 } from "./json-rpc.ts";
-export { filesListMethod, type FileEntry } from "./methods/files.ts";
+export {
+  filesChangedNotification,
+  filesListMethod,
+  type FileChange,
+  type FileEntry,
+} from "./methods/files.ts";
 export { workshopCreateMethod, workshopOpenMethod, type WorkshopInfo } from "./methods/workshop.ts";
 export { validateName, type NameValidation } from "./name.ts";
