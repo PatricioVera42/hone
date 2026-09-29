@@ -8,3 +8,5 @@ Everything a tool can check is enforced by `pnpm check` (tsconfig, the Oxlint an
 - Throw only `Error` subclasses. Catch only where you can handle the error or turn it into a JSON-RPC error; don't catch just to log and rethrow.
 - YAGNI: no options, parameters or abstractions without a current use.
 - Tests check behavior through public interfaces, not private details.
+- A test must be able to fail on a real bug. No tests that mirror the implementation or only check that one piece calls another.
+- Tests wait for an observable result, never for a fixed time, except to check that something doesn't happen.
