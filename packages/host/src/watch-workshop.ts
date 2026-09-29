@@ -1,5 +1,6 @@
 import type { FileChange } from "@hone/protocol";
 import { watch } from "chokidar";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { collapseChanges, type PathEvent } from "./collapse-changes.ts";
 import { inspectFile } from "./inspect-file.ts";
@@ -21,6 +22,19 @@ function isIgnored(protocolPath: string): boolean {
   return (
     /(^|\/)(node_modules|\.git)(\/|$)/.test(protocolPath) || /\.tmp\.[^/]*$/.test(protocolPath)
   );
+}
+
+// Chokidar reports a symlink as a file, but files.list gives it its target's kind, and so must changes.
+async function kindOnDisk(
+  absolutePath: string,
+  eventKind: FileChange["kind"],
+): Promise<FileChange["kind"]> {
+  try {
+    return (await fs.stat(absolutePath)).isDirectory() ? "folder" : "file";
+  } catch {
+    // Gone again, or a broken symlink, which files.list shows as a file just like the event does.
+    return eventKind;
+  }
 }
 
 async function versionOf(workshopRoot: string, protocolPath: string): Promise<string | undefined> {
@@ -45,7 +59,7 @@ interface PendingPath {
 
 /**
  * Watches the workshop at `workshopRoot` and calls `onChange` once per path whose events settle within a short
- * window, collapsed with {@link collapseChanges}. Resolves once the initial scan is done, so every change made
+ * window, collapsed with {@link collapseChanges}, with a symlink taking its target's kind. Resolves once the initial scan is done, so every change made
  * afterwards gets reported. Ignores `node_modules`, `.git` and `*.tmp.*` names, and doesn't follow symlinks.
  */
 export async function watchWorkshop(
@@ -61,7 +75,10 @@ export async function watchWorkshop(
     const collapsed = collapseChanges(events);
     if (collapsed === undefined) return;
     const change: FileChange = { path: protocolPath, ...collapsed };
-    if (collapsed.kind === "file" && collapsed.change !== "deleted") {
+    if (change.change !== "deleted") {
+      change.kind = await kindOnDisk(path.join(workshopRoot, protocolPath), change.kind);
+    }
+    if (change.kind === "file" && change.change !== "deleted") {
       const version = await versionOf(workshopRoot, protocolPath);
       if (version !== undefined) change.version = version;
     }

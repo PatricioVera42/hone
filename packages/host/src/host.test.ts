@@ -381,6 +381,24 @@ describe("files.changed", () => {
     });
   });
 
+  it("reports a symlink with its target's kind, the way files.list does", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "project"));
+    await host.call("workshop.open", { path: root });
+
+    await fs.symlink(path.join(root, "project"), path.join(root, "project-link"));
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).toContainEqual({
+        path: "project-link",
+        change: "created",
+        kind: "folder",
+      });
+    });
+  });
+
   it("stops watching the previous workshop once another one is opened", async () => {
     host = await startTestHost();
     const first = await makeWorkshop();
