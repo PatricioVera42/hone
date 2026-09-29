@@ -515,6 +515,388 @@ describe("files.write", () => {
   });
 });
 
+it.each([
+  { method: "files.create", params: { path: "idea.md", kind: "file" } },
+  { method: "files.rename", params: { from: "idea.md", to: "plan.md" } },
+  { method: "files.delete", params: { path: "idea.md" } },
+  { method: "files.countFiles", params: { path: "" } },
+])("$method fails with NoWorkshopOpen before a workshop is open", async ({ method, params }) => {
+  host = await startTestHost();
+
+  await expect(host.call(method, params)).rejects.toMatchObject({ code: -32008 });
+});
+
+describe("files.create", () => {
+  it("creates an empty file inside a folder", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "notes"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.create", { path: "notes/idea.md", kind: "file" }),
+    ).resolves.toBeNull();
+    await expect(fs.readFile(path.join(root, "notes", "idea.md"), "utf8")).resolves.toBe("");
+  });
+
+  it("creates a folder", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.create", { path: "project", kind: "folder" });
+    expect((await fs.stat(path.join(root, "project"))).isDirectory()).toBe(true);
+  });
+
+  it.each(["file", "folder"])(
+    "fails with AlreadyExists when a %s's name is taken, leaving what's there untouched",
+    async (kind) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await fs.writeFile(path.join(root, "idea.md"), "taken");
+      await host.call("workshop.open", { path: root });
+
+      await expect(host.call("files.create", { path: "idea.md", kind })).rejects.toMatchObject({
+        code: -32002,
+      });
+      await expect(fs.readFile(path.join(root, "idea.md"), "utf8")).resolves.toBe("taken");
+    },
+  );
+
+  it("fails with AlreadyExists for a broken symlink's name", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.symlink(path.join(root, "missing.md"), path.join(root, "link.md"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.create", { path: "link.md", kind: "file" }),
+    ).rejects.toMatchObject({ code: -32002 });
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone", "link.md"]);
+  });
+
+  it.each(["", "notes/", "notes/..", "."])(
+    "fails with InvalidName for %j, creating nothing",
+    async (invalidPath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await fs.mkdir(path.join(root, "notes"));
+      await host.call("workshop.open", { path: root });
+
+      await expect(
+        host.call("files.create", { path: invalidPath, kind: "folder" }),
+      ).rejects.toMatchObject({ code: -32009 });
+      await expect(fs.readdir(path.join(root, "notes"))).resolves.toStrictEqual([]);
+    },
+  );
+
+  it("fails with NotFound when the parent folder doesn't exist", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.create", { path: "missing/idea.md", kind: "file" }),
+    ).rejects.toMatchObject({ code: -32003 });
+  });
+
+  it.each(["../idea.md", "/tmp/idea.md", "/idea.md", ".."])(
+    "fails with OutsideWorkshop for %j, creating nothing",
+    async (outsidePath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await host.call("workshop.open", { path: root });
+
+      await expect(
+        host.call("files.create", { path: outsidePath, kind: "file" }),
+      ).rejects.toMatchObject({ code: -32004 });
+    },
+  );
+
+  it("fails with OutsideWorkshop through a symlink to a folder outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "hone-outside-"));
+    await fs.symlink(outside, path.join(root, "escape"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.create", { path: "escape/idea.md", kind: "file" }),
+    ).rejects.toMatchObject({ code: -32004 });
+    await expect(fs.readdir(outside)).resolves.toStrictEqual([]);
+  });
+});
+
+describe("files.rename", () => {
+  it("renames a file, keeping its content", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "notes"));
+    await fs.writeFile(path.join(root, "notes", "idea.md"), "hello");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.rename", { from: "notes/idea.md", to: "notes/plan.md" }),
+    ).resolves.toBeNull();
+    await expect(fs.readdir(path.join(root, "notes"))).resolves.toStrictEqual(["plan.md"]);
+    await expect(fs.readFile(path.join(root, "notes", "plan.md"), "utf8")).resolves.toBe("hello");
+  });
+
+  it("renames a folder with everything inside it", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "math", "algebra"), { recursive: true });
+    await fs.writeFile(path.join(root, "math", "algebra", "groups.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.rename", { from: "math", to: "maths" });
+    await expect(fs.readdir(path.join(root, "maths", "algebra"))).resolves.toStrictEqual([
+      "groups.md",
+    ]);
+    await expect(fs.stat(path.join(root, "math"))).rejects.toThrow();
+  });
+
+  it("renames a symlink itself, leaving its target where it was", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "");
+    await fs.symlink("note.md", path.join(root, "link.md"));
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.rename", { from: "link.md", to: "shortcut.md" });
+    expect((await fs.lstat(path.join(root, "shortcut.md"))).isSymbolicLink()).toBe(true);
+    expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "note.md", "shortcut.md"]);
+  });
+
+  it("fails with AlreadyExists when the new name is taken, leaving both untouched", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "idea.md"), "idea");
+    await fs.writeFile(path.join(root, "plan.md"), "plan");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.rename", { from: "idea.md", to: "plan.md" }),
+    ).rejects.toMatchObject({ code: -32002 });
+    await expect(fs.readFile(path.join(root, "idea.md"), "utf8")).resolves.toBe("idea");
+    await expect(fs.readFile(path.join(root, "plan.md"), "utf8")).resolves.toBe("plan");
+  });
+
+  it("fails with NotFound when nothing is at the old path", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.rename", { from: "missing.md", to: "plan.md" }),
+    ).rejects.toMatchObject({ code: -32003 });
+  });
+
+  it("fails with NotFound when the new path's folder doesn't exist", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "idea.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.rename", { from: "idea.md", to: "missing/idea.md" }),
+    ).rejects.toMatchObject({ code: -32003 });
+  });
+
+  it.each(["", "notes/", "notes/..", "."])(
+    "fails with InvalidName when renaming to %j, renaming nothing",
+    async (invalidPath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await fs.mkdir(path.join(root, "notes"));
+      await fs.writeFile(path.join(root, "idea.md"), "");
+      await host.call("workshop.open", { path: root });
+
+      await expect(
+        host.call("files.rename", { from: "idea.md", to: invalidPath }),
+      ).rejects.toMatchObject({ code: -32009 });
+      expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "idea.md", "notes"]);
+    },
+  );
+
+  it("fails with InvalidName when renaming the workshop root", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.rename", { from: "", to: "other" })).rejects.toMatchObject({
+      code: -32009,
+    });
+  });
+
+  it.each([
+    { from: "idea.md", to: "../idea.md" },
+    { from: "../idea.md", to: "idea.md" },
+    { from: "idea.md", to: "/plan.md" },
+  ])("fails with OutsideWorkshop from $from to $to", async ({ from, to }) => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "idea.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.rename", { from, to })).rejects.toMatchObject({
+      code: -32004,
+    });
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone", "idea.md"]);
+  });
+});
+
+describe("files.delete", () => {
+  it("deletes a folder with everything inside it", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "math", "algebra"), { recursive: true });
+    await fs.writeFile(path.join(root, "math", "algebra", "groups.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.delete", { path: "math" })).resolves.toBeNull();
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone"]);
+  });
+
+  it("deletes a file", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "idea.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.delete", { path: "idea.md" });
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone"]);
+  });
+
+  it("deletes a symlink to a folder, leaving the folder and its files", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "math"));
+    await fs.writeFile(path.join(root, "math", "groups.md"), "");
+    await fs.symlink("math", path.join(root, "link"));
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.delete", { path: "link" });
+    expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "math"]);
+    await expect(fs.readdir(path.join(root, "math"))).resolves.toStrictEqual(["groups.md"]);
+  });
+
+  it("fails with NotFound when nothing is there", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.delete", { path: "missing.md" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it.each(["", ".", "math/.."])(
+    "fails with InvalidName for %j, deleting nothing",
+    async (invalidPath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await fs.mkdir(path.join(root, "math"));
+      await host.call("workshop.open", { path: root });
+
+      await expect(host.call("files.delete", { path: invalidPath })).rejects.toMatchObject({
+        code: -32009,
+      });
+      expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "math"]);
+    },
+  );
+
+  it.each(["..", "../idea.md", "/tmp"])(
+    "fails with OutsideWorkshop for %j, deleting nothing",
+    async (outsidePath) => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      await host.call("workshop.open", { path: root });
+
+      await expect(host.call("files.delete", { path: outsidePath })).rejects.toMatchObject({
+        code: -32004,
+      });
+      await expect(fs.stat(root)).resolves.toBeDefined();
+    },
+  );
+
+  it("fails with OutsideWorkshop inside a symlink to a folder outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "hone-outside-"));
+    await fs.writeFile(path.join(outside, "secret.md"), "");
+    await fs.symlink(outside, path.join(root, "escape"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.delete", { path: "escape/secret.md" })).rejects.toMatchObject({
+      code: -32004,
+    });
+    await expect(fs.readdir(outside)).resolves.toStrictEqual(["secret.md"]);
+  });
+});
+
+describe("files.countFiles", () => {
+  it("counts the files at any depth, hidden ones and symlinks included, but not folders", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const math = path.join(root, "math");
+    await fs.mkdir(path.join(math, "algebra", ".git"), { recursive: true });
+    await fs.mkdir(path.join(math, "node_modules"));
+    await fs.mkdir(path.join(math, "empty"));
+    await fs.writeFile(path.join(math, "groups.md"), "");
+    await fs.writeFile(path.join(math, ".hidden"), "");
+    await fs.writeFile(path.join(math, "algebra", "rings.md"), "");
+    await fs.writeFile(path.join(math, "algebra", ".git", "HEAD"), "");
+    await fs.writeFile(path.join(math, "node_modules", "index.js"), "");
+    await fs.symlink(root, path.join(math, "loop"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.countFiles", { path: "math" })).resolves.toStrictEqual({
+      count: 6,
+    });
+  });
+
+  it("stops counting at 10,000", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "big", "nested"), { recursive: true });
+    await Promise.all(
+      Array.from({ length: 10_001 }, (_, index) =>
+        fs.writeFile(
+          path.join(root, "big", index % 2 === 0 ? "nested" : "", `${String(index)}.md`),
+          "",
+        ),
+      ),
+    );
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.countFiles", { path: "big" })).resolves.toStrictEqual({
+      count: 10_000,
+    });
+  });
+
+  it("fails with NotFound for a file", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "idea.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.countFiles", { path: "idea.md" })).rejects.toMatchObject({
+      code: -32003,
+    });
+  });
+
+  it("fails with OutsideWorkshop for a folder outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(host.call("files.countFiles", { path: ".." })).rejects.toMatchObject({
+      code: -32004,
+    });
+  });
+});
+
 /** The `files.changed` notifications received so far, as their params. */
 function fileChanges(testHost: TestHost): unknown[] {
   return testHost.notifications

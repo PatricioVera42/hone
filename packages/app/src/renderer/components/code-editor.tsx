@@ -18,7 +18,7 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -104,8 +104,10 @@ export interface EditorConnection {
 }
 
 interface CodeEditorProps {
-  /** The file's protocol path, relative to the workshop root. */
+  /** The file's protocol path when it was opened, relative to the workshop root, which picks its language. */
   readonly path: string;
+  /** The editor's accessible name: the file's current protocol path, which a rename changes. */
+  readonly label: string;
   /** The content the editor starts with. Later changes come through the {@link EditorContent} given to `connect`. */
   readonly content: string;
   /** Called once the editor is mounted, with a handle to read and replace its content. */
@@ -116,8 +118,12 @@ interface CodeEditorProps {
  * A CodeMirror editor for a file's content. A note gets Markdown with GFM; any other file gets the language
  * `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
  */
-export function CodeEditor({ path, content, connect }: CodeEditorProps) {
+export function CodeEditor({ path, label, content, connect }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null);
+  const view = useRef<EditorView>(undefined);
+  const [labelCompartment] = useState(() => new Compartment());
+  // Read once when the view is built; later labels come through the compartment.
+  const initialLabel = useEffectEvent(() => label);
   // Not a dependency of the view's effect: a new callback mustn't rebuild the view and lose what's in it.
   const connectEditor = useEffectEvent(connect);
 
@@ -128,7 +134,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
     const note = isNote(path);
     // Assigned once the view exists, which its listener only needs after the first edit.
     let connection: EditorConnection | undefined;
-    const view = new EditorView({
+    const editorView = new EditorView({
       parent: parent.current,
       state: EditorState.create({
         doc: content,
@@ -141,7 +147,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
             if (edited) connection?.edited();
           }),
           indentUnit.of(detectIndentUnit(content)),
-          EditorView.contentAttributes.of({ "aria-label": path }),
+          labelCompartment.of(EditorView.contentAttributes.of({ "aria-label": initialLabel() })),
           highlightSpecialChars(),
           drawSelection(),
           highlightActiveLine(),
@@ -155,14 +161,14 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
 
     connection = connectEditor({
       // `sliceDoc` joins lines with the line separator, where `doc.toString()` would always use `\n`.
-      read: () => view.state.sliceDoc(),
+      read: () => editorView.state.sliceDoc(),
       replace: (next) => {
         // Reconfigured first, so the new content is split into lines by its own line endings.
-        view.dispatch({ effects: lineSeparator.reconfigure(lineSeparatorFor(next)) });
-        const nextLength = view.state.toText(next).length;
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: next },
-          selection: { anchor: Math.min(view.state.selection.main.head, nextLength) },
+        editorView.dispatch({ effects: lineSeparator.reconfigure(lineSeparatorFor(next)) });
+        const nextLength = editorView.state.toText(next).length;
+        editorView.dispatch({
+          changes: { from: 0, to: editorView.state.doc.length, insert: next },
+          selection: { anchor: Math.min(editorView.state.selection.main.head, nextLength) },
           annotations: fromDisk.of(true),
         });
       },
@@ -174,16 +180,26 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
     description
       ?.load()
       .then((support) => {
-        if (!destroyed) view.dispatch({ effects: language.reconfigure(support) });
+        if (!destroyed) editorView.dispatch({ effects: language.reconfigure(support) });
       })
       // The file stays readable as plain text.
       .catch(reportError);
+    view.current = editorView;
     return () => {
+      view.current = undefined;
       destroyed = true;
       connection.disconnect();
-      view.destroy();
+      editorView.destroy();
     };
   }, [path, content]);
+
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: labelCompartment.reconfigure(
+        EditorView.contentAttributes.of({ "aria-label": label }),
+      ),
+    });
+  }, [labelCompartment, label]);
 
   return <div ref={parent} className="h-full" />;
 }

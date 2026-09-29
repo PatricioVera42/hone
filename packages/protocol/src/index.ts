@@ -13,9 +13,14 @@ export {
 } from "./json-rpc.ts";
 export {
   filesChangedNotification,
+  filesCountFilesMethod,
+  filesCreateMethod,
+  filesDeleteMethod,
   filesListMethod,
   filesReadMethod,
+  filesRenameMethod,
   filesWriteMethod,
+  maxCountedFiles,
   type FileChange,
   type FileContent,
   type FileEntry,
