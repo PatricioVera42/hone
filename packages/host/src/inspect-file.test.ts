@@ -12,12 +12,13 @@ async function writeTemporary(bytes: string | Buffer): Promise<string> {
 }
 
 describe("inspectFile", () => {
-  it("reports a small text file as text, with the SHA-256 hex of its bytes as the version", async () => {
+  it("reports a small text file as text, with its content and the SHA-256 hex of its bytes as the version", async () => {
     const file = await writeTemporary("hello");
     await expect(inspectFile(file)).resolves.toStrictEqual({
       withinSizeLimit: true,
       text: true,
       version: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      content: "hello",
     });
   });
 

@@ -39,3 +39,19 @@ export const filesChangedNotification: NotificationDefinition<FileChange> = {
   name: "files.changed",
   params: fileChangeSchema,
 };
+
+const fileContentSchema = z.object({ content: z.string(), version: z.string() });
+
+/** A text file's content and the version it was read at. */
+export type FileContent = z.infer<typeof fileContentSchema>;
+
+/**
+ * Reads a text file as UTF-8, keeping its line endings. `version` is the SHA-256 hex of its bytes, as in `files.changed`.
+ * Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` (also for a folder), `TooLarge` above 5 MB and `NotText`
+ * when its first 8 KB contain a NUL byte.
+ */
+export const filesReadMethod: MethodDefinition<{ path: string }, FileContent> = {
+  name: "files.read",
+  params: z.object({ path: z.string() }),
+  result: fileContentSchema,
+};
