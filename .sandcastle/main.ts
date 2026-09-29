@@ -51,7 +51,11 @@ try {
   const result = await sandbox.run({
     agent: claudeCode("claude-opus-5-5"),
     promptFile: ".sandcastle/implement.md",
-    promptArgs: { ISSUE_NUMBER: issue, ISSUE: gh("issue", "view", issue, "--comments") },
+    // Outside a terminal, `--comments` prints only the comments, so the body comes from a second call.
+    promptArgs: {
+      ISSUE_NUMBER: issue,
+      ISSUE: `${gh("issue", "view", issue)}\n\n${gh("issue", "view", issue, "--comments")}`,
+    },
     logging: { type: "stdout" },
   });
   const summary =
