@@ -1,4 +1,4 @@
-import { filesListMethod, type FileEntry } from "@hone/protocol";
+import { filesChangedNotification, filesListMethod, type FileEntry } from "@hone/protocol";
 import { ArrowRight01Icon, File01Icon, Folder01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import {
   SidebarMenuSkeleton,
   SidebarMenuSub,
 } from "@/components/ui/sidebar.tsx";
+import { applyFileChange } from "@/apply-file-change.ts";
 import type { HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
 import { sortEntries } from "@/sort-entries.ts";
@@ -23,9 +24,21 @@ function childPath(folder: string, name: string): string {
   return folder === "" ? name : `${folder}/${name}`;
 }
 
-/** Lists one folder when it mounts, so a folder's children are only fetched once it's first expanded. */
+/**
+ * Lists one folder when it mounts, so a folder's children are only fetched once it's first expanded, and keeps it
+ * up to date with `files.changed` from then on.
+ */
 function FolderContents({ client, path }: FolderContentsProps) {
-  const [entries, setEntries] = useState<FileEntry[]>();
+  const [entries, setEntries] = useState<readonly FileEntry[]>();
+
+  useEffect(
+    () =>
+      client.onNotification(filesChangedNotification, (change) => {
+        // A folder whose listing hasn't arrived isn't loaded yet, so it ignores changes until then.
+        setEntries((current) => current && applyFileChange(path, current, change));
+      }),
+    [client, path],
+  );
 
   useEffect(() => {
     let cancelled = false;

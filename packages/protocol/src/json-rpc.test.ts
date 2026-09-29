@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { AppError } from "./errors.ts";
-import { handleJsonRpcMessage, jsonRpcErrorCodes, registerMethod } from "./json-rpc.ts";
+import {
+  encodeNotification,
+  handleJsonRpcMessage,
+  jsonRpcErrorCodes,
+  registerMethod,
+  type NotificationDefinition,
+} from "./json-rpc.ts";
 
 const echoMethod = {
   name: "test.echo",
@@ -83,6 +89,21 @@ describe("handleJsonRpcMessage", () => {
       jsonrpc: "2.0",
       id: 1,
       error: { code: -32003, message: "nope" },
+    });
+  });
+});
+
+describe("encodeNotification", () => {
+  const pingNotification: NotificationDefinition<{ count: number }> = {
+    name: "test.ping",
+    params: z.object({ count: z.number() }),
+  };
+
+  it("builds a JSON-RPC notification, with no id", () => {
+    expect(JSON.parse(encodeNotification(pingNotification, { count: 1 }))).toStrictEqual({
+      jsonrpc: "2.0",
+      method: "test.ping",
+      params: { count: 1 },
     });
   });
 });

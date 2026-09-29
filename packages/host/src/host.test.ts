@@ -1,7 +1,9 @@
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { setTimeout } from "node:timers/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   connectToHost,
   spawnHost,
@@ -290,6 +292,154 @@ describe("files.list", () => {
       kind: "file",
     });
   });
+});
+
+/** The `files.changed` notifications received so far, as their params. */
+function fileChanges(testHost: TestHost): unknown[] {
+  return testHost.notifications
+    .filter((notification) => notification.method === "files.changed")
+    .map((notification) => notification.params);
+}
+
+/** Runs a shell command in another process, the way a terminal or an agent would touch the workshop. */
+function runShell(command: string, cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("sh", ["-c", command], { cwd }, (error) => {
+      if (error === null) resolve();
+      else reject(error);
+    });
+  });
+}
+
+describe("files.changed", () => {
+  it("reports a file written by another process, with the SHA-256 of its bytes as the version", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await runShell("printf hello > note.md", root);
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).toContainEqual({
+        path: "note.md",
+        change: "created",
+        kind: "file",
+        version: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      });
+    });
+  });
+
+  it("reports an atomic save (a temporary written, then renamed onto the target) as one change to the target", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "hello");
+    await host.call("workshop.open", { path: root });
+
+    // The way Claude Code's Write and Edit tools save (research/spike-04-file-watching.md). The pause outlasts
+    // the collapsing window, so the temporary would get its own notifications if it weren't ignored.
+    await runShell(
+      "printf world > note.md.tmp.4242.a1b2c3 && sleep 0.1 && mv note.md.tmp.4242.a1b2c3 note.md",
+      root,
+    );
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).not.toStrictEqual([]);
+    });
+    // Leaves time for any stray notification after the first to arrive.
+    await setTimeout(200);
+    expect(fileChanges(testHost)).toStrictEqual([
+      {
+        path: "note.md",
+        change: "changed",
+        kind: "file",
+        version: "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7",
+      },
+    ]);
+  });
+
+  it("reports a deleted file, and a new folder with a file inside", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "old.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    await runShell("rm old.md && mkdir project && printf '' > project/notes.md", root);
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      const changes = fileChanges(testHost);
+      expect(changes).toContainEqual({ path: "old.md", change: "deleted", kind: "file" });
+      expect(changes).toContainEqual({ path: "project", change: "created", kind: "folder" });
+      expect(changes).toContainEqual({
+        path: "project/notes.md",
+        change: "created",
+        kind: "file",
+        version: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      });
+    });
+  });
+
+  it("reports a symlink with its target's kind, the way files.list does", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "project"));
+    await host.call("workshop.open", { path: root });
+
+    await fs.symlink(path.join(root, "project"), path.join(root, "project-link"));
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).toContainEqual({
+        path: "project-link",
+        change: "created",
+        kind: "folder",
+      });
+    });
+  });
+
+  it("stops watching the previous workshop once another one is opened", async () => {
+    host = await startTestHost();
+    const first = await makeWorkshop();
+    const second = await makeWorkshop();
+    await host.call("workshop.open", { path: first });
+    await host.call("workshop.open", { path: second });
+
+    await fs.writeFile(path.join(first, "first.md"), "");
+    await fs.writeFile(path.join(second, "second.md"), "");
+
+    const testHost = host;
+    // Both writes happen together, so by the time the second workshop's arrives the first's would have too.
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).toContainEqual(expect.objectContaining({ path: "second.md" }));
+    });
+    expect(fileChanges(testHost)).not.toContainEqual(expect.objectContaining({ path: "first.md" }));
+  });
+  // Root reads any folder regardless of its mode, so there'd be no error to report.
+  it.skipIf(process.getuid?.() === 0)(
+    "writes a watcher error to stderr instead of dropping it",
+    async () => {
+      host = await startTestHost();
+      const root = await makeWorkshop();
+      const locked = path.join(root, "locked");
+      await fs.mkdir(locked);
+      await fs.chmod(locked, 0o000);
+      let stderr = "";
+      host.process.stderr.on("data", (chunk: Buffer) => {
+        stderr += String(chunk);
+      });
+      try {
+        await host.call("workshop.open", { path: root });
+
+        await vi.waitFor(() => {
+          expect(stderr).toContain("EACCES");
+        });
+      } finally {
+        await fs.chmod(locked, 0o755);
+      }
+    },
+  );
 });
 
 describe("lifecycle", () => {

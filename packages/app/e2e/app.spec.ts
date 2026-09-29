@@ -290,6 +290,31 @@ test("the sidebar lists the workshop's files, folders first, and loads a folder 
   }
 });
 
+test("files created and deleted on disk show up in the tree on their own", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await mkdir(path.join(root, "Math"));
+  await writeFile(path.join(root, "Math", "old.md"), "");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await tree.getByRole("button", { name: "Math" }).click();
+    await expect(tree.getByRole("button", { name: "old.md" })).toBeVisible();
+
+    await writeFile(path.join(root, "Math", "algebra.md"), "");
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeVisible();
+
+    await rm(path.join(root, "Math", "old.md"));
+    await expect(tree.getByRole("button", { name: "old.md" })).toBeHidden();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("a folder that can't be listed shows an error and stops loading", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const root = await makeWorkshop(temporary, "studies");

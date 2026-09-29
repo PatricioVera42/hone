@@ -18,9 +18,16 @@ class RpcCallError extends Error {
   }
 }
 
+interface ReceivedNotification {
+  readonly method: string;
+  readonly params: unknown;
+}
+
 export interface TestHost {
   readonly process: ChildProcessWithoutNullStreams;
   readonly client: WebSocket;
+  /** Every notification the host has sent so far, in order. */
+  readonly notifications: readonly ReceivedNotification[];
   /** Sends a JSON-RPC request and resolves with its result, or rejects with a {@link RpcCallError}. */
   call(method: string, params: unknown): Promise<unknown>;
   /** Closes the socket and the host's stdin, and waits for the process to exit. */
@@ -67,6 +74,12 @@ const responseSchema = z.union([
   }),
 ]);
 
+const notificationSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  method: z.string(),
+  params: z.unknown(),
+});
+
 /** Connects to a running host's WebSocket server with the given token, resolving once open or rejecting on error. */
 export function connectToHost(port: number, token: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
@@ -96,6 +109,13 @@ export async function startTestHost(): Promise<TestHost> {
   const { process: child, port, token } = await spawnHost();
   const client = await connectToHost(port, token);
 
+  const notifications: ReceivedNotification[] = [];
+  client.on("message", (data: RawData) => {
+    const parsed = notificationSchema.safeParse(JSON.parse(rawDataToText(data)));
+    if (parsed.success)
+      notifications.push({ method: parsed.data.method, params: parsed.data.params });
+  });
+
   let nextId = 1;
   function call(method: string, params: unknown): Promise<unknown> {
     const id = nextId;
@@ -118,6 +138,7 @@ export async function startTestHost(): Promise<TestHost> {
   return {
     process: child,
     client,
+    notifications,
     call,
     close: async () => {
       client.close();

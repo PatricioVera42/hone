@@ -28,6 +28,14 @@ export interface NotificationDefinition<Params = unknown> {
   readonly params: z.ZodType<Params>;
 }
 
+/** The JSON text of a notification built from its definition, for the side that sends it. */
+export function encodeNotification<Params>(
+  notification: NotificationDefinition<Params>,
+  params: Params,
+): string {
+  return JSON.stringify({ jsonrpc: "2.0", method: notification.name, params });
+}
+
 class InvalidParamsError extends Error {}
 
 /** Binds a method definition to its implementation, validating params before calling it. */

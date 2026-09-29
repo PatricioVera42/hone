@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import readline from "node:readline";
 import { URL } from "node:url";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
-import { createHandlers } from "./handlers.ts";
+import { createConnection } from "./handlers.ts";
 import { rawDataToText } from "./raw-data-text.ts";
 
 function readToken(): Promise<string> {
@@ -40,9 +40,12 @@ async function main(): Promise<void> {
   });
 
   wss.on("connection", (socket) => {
-    const handlers = createHandlers();
+    const connection = createConnection((message) => socket.send(message));
     socket.on("message", (data: RawData) => {
-      void respond(socket, handlers, data);
+      void respond(socket, connection.handlers, data);
+    });
+    socket.on("close", () => {
+      void connection.close();
     });
   });
 
