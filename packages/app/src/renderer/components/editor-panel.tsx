@@ -73,9 +73,9 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
       edited: () => file.edited(),
       disconnect: () => {
         unsubscribe();
-        untrack();
-        // Closing a tab saves its pending edits.
-        void file.close();
+        // Closing a tab saves its pending edits. Tracked until then, so a workshop switch or the window closing
+        // right after waits for that save.
+        void file.close().then(untrack);
       },
     };
   }
