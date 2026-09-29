@@ -27,3 +27,11 @@ export {
 } from "./methods/files.ts";
 export { workshopCreateMethod, workshopOpenMethod, type WorkshopInfo } from "./methods/workshop.ts";
 export { validateName, type NameValidation } from "./name.ts";
+export {
+  terminalCloseMethod,
+  terminalDataNotification,
+  terminalExitNotification,
+  terminalOpenMethod,
+  terminalResizeMethod,
+  terminalWriteMethod,
+} from "./methods/terminal.ts";

@@ -12,7 +12,7 @@ In design. The monorepo foundation exists: `pnpm dev` opens an empty window, and
 
 ## Development
 
-Requires Windows with WSL2, and Node 24 and pnpm 12 inside WSL. The repo lives in WSL; `pnpm dev` launches the Windows Electron binary on it.
+Requires Windows with WSL2, and Node 24 and pnpm 12 inside WSL. The repo lives in WSL; `pnpm dev` launches the Windows Electron binary on it. `pnpm install` compiles `node-pty` from source, which needs `build-essential` and `python3`.
 
 ```bash
 pnpm install
@@ -59,4 +59,4 @@ The agent gets no GitHub credentials; the harness reads the issue and opens the 
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE), except the bundled CaskaydiaCove Nerd Font, which is under the SIL Open Font License 1.1 ([its license](packages/app/src/renderer/fonts/caskaydia-cove/LICENSE)).

@@ -95,18 +95,21 @@ export interface SpawnedHost {
   readonly token: string;
 }
 
-/** Spawns the real host, the way the app will: token on stdin, port from the ready line. Doesn't connect. */
-export async function spawnHost(): Promise<SpawnedHost> {
+/**
+ * Spawns the real host, the way the app will: token on stdin, port from the ready line. Doesn't connect.
+ * `env` replaces the test's environment for the host, and so for the terminals it opens.
+ */
+export async function spawnHost(env: NodeJS.ProcessEnv = process.env): Promise<SpawnedHost> {
   const token = randomBytes(32).toString("hex");
-  const child = spawn(process.execPath, [hostEntry], { stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [hostEntry], { stdio: ["pipe", "pipe", "pipe"], env });
   child.stdin.write(`${token}\n`);
   const port = await readReadyPort(child);
   return { process: child, port, token };
 }
 
-/** Spawns the real host and connects a client with the right token. */
-export async function startTestHost(): Promise<TestHost> {
-  const { process: child, port, token } = await spawnHost();
+/** Spawns the real host with `env` (see {@link spawnHost}) and connects a client with the right token. */
+export async function startTestHost(env?: NodeJS.ProcessEnv): Promise<TestHost> {
+  const { process: child, port, token } = await spawnHost(env);
   const client = await connectToHost(port, token);
 
   const notifications: ReceivedNotification[] = [];

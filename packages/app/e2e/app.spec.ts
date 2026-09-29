@@ -1,5 +1,11 @@
 // End-to-end: drives the built app with Playwright (README: "End-to-end tests").
-import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from "@playwright/test";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -767,6 +773,87 @@ test("deleting a folder says how many files it holds, and confirming removes it 
     await expect(page.getByRole("tab", { name: "other.md" })).toBeVisible();
     await expect(tree.getByRole("button", { name: "math" })).toBeHidden();
     await expect(readdir(root)).resolves.not.toContain("math");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+/**
+ * The rows of the terminals titled `title`, read through xterm's accessibility tree, which exists once xterm has
+ * opened: from then on, what's typed reaches the shell. A terminal hidden behind another tab has none.
+ */
+function terminals(page: Page, title: string) {
+  return page.getByRole("region", { name: `Terminal in ${title}` }).getByRole("list");
+}
+
+test("Ctrl+` opens a terminal at the workshop root that runs commands", async () => {
+  const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    await page.keyboard.press("Control+Backquote");
+    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+    await expect(terminals(page, "studies")).toBeVisible();
+
+    await page.keyboard.type("echo hello | tee greeting.txt");
+    await page.keyboard.press("Enter");
+
+    await expect(
+      terminals(page, "studies")
+        .getByRole("listitem")
+        .filter({ hasText: /^\s*hello\s*$/ }),
+    ).toHaveCount(1);
+    await expect.poll(() => readFile(path.join(root, "greeting.txt"), "utf8")).toBe("hello\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Ctrl+` inside a terminal opens another in its group, and exit closes a terminal's tab", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    await page.keyboard.press("Control+Backquote");
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(1);
+    await page.keyboard.press("Control+Backquote");
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(2);
+    await expect(page.getByRole("tablist")).toHaveCount(1);
+
+    // The first terminal is hidden behind the second's tab, so only the second's rows are visible.
+    await expect(terminals(page, "studies")).toBeVisible();
+
+    await page.keyboard.type("exit");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(1);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("opening another workshop closes the terminals", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  const other = await makeWorkshop(await mkdtemp(path.join(tmpdir(), "hone-e2e-")), "work");
+  try {
+    await page.keyboard.press("Control+Backquote");
+    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+
+    await pickFolderInDialog(electronApp, other);
+    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a terminal whose shell can't start closes its tab and shows the error", async () => {
+  const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    // The folder it would start in is gone, so terminal.open fails with NotFound. The file tree can fail the same way,
+    // so the error alone doesn't prove the tab opened and closed; without the fix the tab stays open, which this catches.
+    await rm(root, { recursive: true });
+    await page.keyboard.press("Control+Backquote");
+
+    await expect(page.getByText("Something went wrong")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(0);
   } finally {
     await electronApp.close();
   }

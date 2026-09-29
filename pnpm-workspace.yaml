@@ -2,3 +2,4 @@ packages:
   - packages/*
 allowBuilds:
   lefthook: true # its postinstall runs `lefthook install`
+  node-pty: true # no Linux prebuild: compiles from source with build-essential and python3
