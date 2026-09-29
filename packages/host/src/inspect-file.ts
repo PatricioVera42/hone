@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 
-const maxBytes = 5 * 1024 * 1024;
+/** The largest file Hone reads or writes. */
+export const maxBytes = 5 * 1024 * 1024;
 // The same heuristic Git uses: a NUL byte near the start means binary.
 const textSniffBytes = 8 * 1024;
 // Fatal, because decoding another encoding would turn its bytes into U+FFFD and saving would write those back.

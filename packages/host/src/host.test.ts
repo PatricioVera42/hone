@@ -466,6 +466,22 @@ describe("files.write", () => {
     await expect(fs.readFile(path.join(root, "note.md"), "utf8")).resolves.toBe("world");
   });
 
+  it("fails with TooLarge for content over 5 MB, leaving the file untouched", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "hello");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", {
+        path: "note.md",
+        content: "a".repeat(5 * 1024 * 1024 + 1),
+        baseVersion: helloVersion,
+      }),
+    ).rejects.toMatchObject({ code: -32007 });
+    await expect(fs.readFile(path.join(root, "note.md"), "utf8")).resolves.toBe("hello");
+  });
+
   it("fails with NotFound for a file that doesn't exist, creating nothing", async () => {
     host = await startTestHost();
     const root = await makeWorkshop();

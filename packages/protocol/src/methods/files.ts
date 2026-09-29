@@ -60,8 +60,9 @@ export const filesReadMethod: MethodDefinition<{ path: string }, FileContent> = 
  * Replaces an existing text file's content, written as UTF-8 exactly as given (line endings included), if the file
  * is still at `baseVersion`. It writes a temporary sibling `<name>.tmp.hone.<random>`, which the watcher ignores,
  * then renames it onto the file, so readers never see half a file. Returns the new version.
- * Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` (also for a folder; it never creates files) and
- * `VersionConflict` when the file on disk is at another version, leaving it untouched.
+ * Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` (also for a folder; it never creates files),
+ * `TooLarge` when `content` is over 5 MB as UTF-8, and `VersionConflict` when the file on disk is at another version.
+ * A failed write leaves the file untouched.
  */
 export const filesWriteMethod: MethodDefinition<
   { path: string; content: string; baseVersion: string },

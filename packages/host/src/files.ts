@@ -2,7 +2,7 @@ import { AppError, type FileContent, type FileEntry } from "@hone/protocol";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
-import { inspectFile } from "./inspect-file.ts";
+import { inspectFile, maxBytes } from "./inspect-file.ts";
 import { resolveWorkshopPath } from "./workshop-path.ts";
 
 // Tool internals nobody browses, and big enough to swamp the tree.
@@ -67,8 +67,8 @@ export async function readFile(
 /**
  * Replaces a text file of the open workshop with `content` as UTF-8 if it's still at `baseVersion`, through a
  * temporary sibling renamed onto it, keeping its mode. A symlink keeps pointing at the file, which gets the content.
- * Fails like {@link resolveWorkshopPath}, with `NotFound` for a folder and `VersionConflict` when the file on disk
- * is at another version. Returns the new version.
+ * Fails like {@link resolveWorkshopPath}, with `NotFound` for a folder, `VersionConflict` when the file on disk
+ * is at another version and `TooLarge` when `content` is over 5 MB. Returns the new version.
  */
 export async function writeFile(
   workshopRoot: string | undefined,
@@ -84,6 +84,8 @@ export async function writeFile(
     throw new AppError("VersionConflict", `${protocolPath} changed on disk`);
   }
   const bytes = Buffer.from(content, "utf8");
+  // Otherwise Hone couldn't read the file back.
+  if (bytes.length > maxBytes) throw new AppError("TooLarge", `${protocolPath} would be over 5 MB`);
   // The watcher ignores `*.tmp.*` names, so only the rename onto the file gets reported.
   const temporary = `${file}.tmp.hone.${randomBytes(6).toString("hex")}`;
   try {
