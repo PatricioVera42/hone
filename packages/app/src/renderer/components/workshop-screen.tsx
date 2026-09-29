@@ -1,4 +1,6 @@
 import type { WorkshopInfo } from "@hone/protocol";
+import type { DockviewApi } from "dockview-react";
+import { useRef } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +21,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import type { HostClient } from "@/host-client.ts";
+import { EditorArea, openEditorTab } from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
 
 interface WorkshopScreenProps {
@@ -29,8 +32,8 @@ interface WorkshopScreenProps {
 }
 
 /**
- * The open workshop: a fixed left sidebar with the file tree, whose header menu switches workshops.
- * The toggle button in the bar above the content area, or Ctrl+B, opens and closes it.
+ * The open workshop: a fixed left sidebar with the file tree, whose header menu switches workshops, and the editor
+ * area to its right. The toggle button in the bar above the editor area, or Ctrl+B, opens and closes the sidebar.
  */
 export function WorkshopScreen({
   client,
@@ -38,6 +41,8 @@ export function WorkshopScreen({
   onOpenWorkshop,
   onCreateWorkshop,
 }: WorkshopScreenProps) {
+  const editors = useRef<DockviewApi>(undefined);
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -61,7 +66,13 @@ export function WorkshopScreen({
         <SidebarContent>
           <SidebarGroup>
             {/* Keyed by root, so opening another workshop starts a fresh tree with nothing expanded. */}
-            <FileTree key={workshop.root} client={client} />
+            <FileTree
+              key={workshop.root}
+              client={client}
+              onOpenFile={(path) => {
+                if (editors.current !== undefined) openEditorTab(editors.current, path);
+              }}
+            />
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
@@ -70,6 +81,16 @@ export function WorkshopScreen({
         <header className="flex h-10 shrink-0 items-center px-2">
           <SidebarTrigger />
         </header>
+        <div className="min-h-0 flex-1">
+          {/* Keyed by root, so opening another workshop closes every editor tab. */}
+          <EditorArea
+            key={workshop.root}
+            client={client}
+            onReady={(api) => {
+              editors.current = api;
+            }}
+          />
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

@@ -428,3 +428,82 @@ test("resizing the window across the old mobile width keeps expanded folders", a
     await electronApp.close();
   }
 });
+
+test("clicking a note opens it in an editor tab once, and Ctrl+W closes it", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await writeFile(path.join(root, "algebra.md"), "# Algebra\n\nGroups and rings.\n");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    const editor = page.getByRole("textbox", { name: "algebra.md" });
+    await expect(editor).toContainText("Groups and rings.");
+
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab")).toHaveCount(1);
+
+    await editor.click();
+    await page.keyboard.press("Control+w");
+    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(editor).toBeHidden();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a binary file shows a message instead of an editor", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await writeFile(path.join(root, "photo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]));
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await page
+      .getByRole("navigation", { name: "Files" })
+      .getByRole("button", { name: "photo.png" })
+      .click();
+
+    await expect(page.getByRole("tab", { name: "photo.png" })).toBeVisible();
+    await expect(page.getByText("This file can't be opened in Hone")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "photo.png" })).toBeHidden();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("opening another workshop closes every editor tab", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const studies = await makeWorkshop(temporary, "studies");
+  const work = await makeWorkshop(temporary, "work");
+  await writeFile(path.join(studies, "algebra.md"), "Groups.\n");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, studies);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await page
+      .getByRole("navigation", { name: "Files" })
+      .getByRole("button", { name: "algebra.md" })
+      .click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+
+    await page.getByRole("button", { name: "studies" }).click();
+    await pickFolderInDialog(electronApp, work);
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
+  } finally {
+    await electronApp.close();
+  }
+});
