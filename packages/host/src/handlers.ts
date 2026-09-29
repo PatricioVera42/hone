@@ -1,4 +1,5 @@
 import {
+  AppError,
   encodeNotification,
   filesChangedNotification,
   filesCountFilesMethod,
@@ -91,9 +92,12 @@ export function createConnection(send: (message: string) => void): Connection {
       registerMethod(filesWriteMethod, ({ path, content, baseVersion }) =>
         writeFile(workshopRoot, path, content, baseVersion),
       ),
-      registerMethod(terminalOpenMethod, async ({ cwd, cols, rows }) => ({
-        id: terminals.open(await resolveWorkshopFolder(workshopRoot, cwd), cols, rows),
-      })),
+      registerMethod(terminalOpenMethod, async ({ cwd, cols, rows }) => {
+        const folder = await resolveWorkshopFolder(workshopRoot, cwd);
+        // The socket closed while the folder was resolving, so its terminals are already killed and this one wouldn't be.
+        if (closed) throw new AppError("NoWorkshopOpen", "The connection closed");
+        return { id: terminals.open(folder, cols, rows) };
+      }),
       registerMethod(terminalWriteMethod, ({ id, data }) => {
         terminals.write(id, data);
         return null;

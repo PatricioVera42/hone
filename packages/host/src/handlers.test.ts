@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConnection, type Connection } from "./handlers.ts";
 
 async function makeWorkshop(files = 0): Promise<string> {
@@ -16,10 +16,27 @@ async function makeWorkshop(files = 0): Promise<string> {
   return root;
 }
 
+function execute(connection: Connection, method: string, params: unknown): Promise<unknown> {
+  const handler = connection.handlers.find((candidate) => candidate.name === method);
+  if (handler === undefined) throw new Error(`no ${method} handler`);
+  return handler.execute(params);
+}
+
 function openWorkshop(connection: Connection, root: string): Promise<unknown> {
-  const handler = connection.handlers.find((candidate) => candidate.name === "workshop.open");
-  if (handler === undefined) throw new Error("no workshop.open handler");
-  return handler.execute({ path: root });
+  return execute(connection, "workshop.open", { path: root });
+}
+
+/** Makes `SHELL` a shell that appends its process id to the returned file, so a test can find shells it has no id for. */
+async function stubRecordingShell(): Promise<string> {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "hone-home-"));
+  const pidsFile = path.join(home, "pids");
+  const shell = path.join(home, "shell.sh");
+  await fs.writeFile(shell, `#!/bin/sh\necho $$ >> '${pidsFile}'\nexec /bin/bash "$@"\n`, {
+    mode: 0o755,
+  });
+  vi.stubEnv("SHELL", shell);
+  vi.stubEnv("HOME", home);
+  return pidsFile;
 }
 
 // Longer than the collapsing window and the time a watcher takes to report a write.
@@ -30,6 +47,7 @@ let connection: Connection | undefined;
 afterEach(async () => {
   await connection?.close();
   connection = undefined;
+  vi.unstubAllEnvs();
 });
 
 describe("createConnection", () => {
@@ -63,5 +81,19 @@ describe("createConnection", () => {
 
     expect(sent.join("\n")).toContain("current.md");
     expect(sent.join("\n")).not.toContain("stale.md");
+  });
+
+  it("starts no shell for a terminal.open still resolving its folder when the connection closes", async () => {
+    const pidsFile = await stubRecordingShell();
+    connection = createConnection(() => undefined);
+    await openWorkshop(connection, await makeWorkshop());
+
+    const opening = execute(connection, "terminal.open", { cwd: "", cols: 80, rows: 24 });
+    await connection.close();
+
+    await expect(opening).rejects.toMatchObject({ name: "NoWorkshopOpen" });
+    // Long enough for a shell started anyway to record itself.
+    await setTimeout(settleMs);
+    await expect(fs.readFile(pidsFile, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
