@@ -34,7 +34,11 @@ function FolderContents({ client, path }: FolderContentsProps) {
       .then((listed) => {
         if (!cancelled) setEntries(sortEntries(listed));
       })
-      .catch(reportError);
+      .catch((error: unknown) => {
+        reportError(error);
+        // Shows the folder as empty instead of loading forever.
+        if (!cancelled) setEntries([]);
+      });
     return () => {
       cancelled = true;
     };
