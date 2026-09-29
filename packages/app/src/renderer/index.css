@@ -3,8 +3,42 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "dockview-react/dist/styles/dockview.css";
+@import "@xterm/xterm/css/xterm.css";
 
 @custom-variant dark (&:is(.dark *));
+
+/* Bundled, because a font installed in WSL is invisible to Windows (research/spike-01-window-host-terminal.md). */
+@font-face {
+  font-family: "CaskaydiaCove Nerd Font Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/caskaydia-cove/CaskaydiaCoveNerdFontMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "CaskaydiaCove Nerd Font Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/caskaydia-cove/CaskaydiaCoveNerdFontMono-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "CaskaydiaCove Nerd Font Mono";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/caskaydia-cove/CaskaydiaCoveNerdFontMono-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "CaskaydiaCove Nerd Font Mono";
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/caskaydia-cove/CaskaydiaCoveNerdFontMono-BoldItalic.woff2") format("woff2");
+}
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -82,10 +116,8 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* Code editors' font until the terminal ticket bundles the Nerd Font and switches this over. */
-  --font-code:
-    ui-monospace, "Cascadia Code", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", Menlo,
-    Consolas, monospace;
+  /* The terminals' font too; terminal-font.ts names it for xterm. */
+  --font-code: "CaskaydiaCove Nerd Font Mono", monospace;
 }
 
 .dark {

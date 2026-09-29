@@ -104,6 +104,7 @@ export function WorkshopScreen({
           <EditorArea
             key={workshop.root}
             client={client}
+            workshopName={workshop.name}
             openFiles={openFiles}
             onReady={(api) => {
               editors.current = api;
