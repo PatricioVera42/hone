@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/field.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { HostCallError, type HostClient } from "@/host-client.ts";
+import { reportError } from "@/report-error.ts";
 
 interface CreateWorkshopDialogProps {
   readonly client: HostClient;
@@ -93,14 +94,18 @@ function CreateWorkshopForm({ client, initialParent, onCreated }: CreateWorkshop
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)}>
+    <form onSubmit={(event) => void submit(event).catch(reportError)}>
       <FieldGroup>
         <Field>
           <FieldLabel>Parent folder</FieldLabel>
           <FieldDescription>
             <span className="block truncate">{parent ?? "No folder chosen."}</span>
           </FieldDescription>
-          <Button type="button" variant="outline" onClick={() => void chooseParent()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void chooseParent().catch(reportError)}
+          >
             Choose folder…
           </Button>
         </Field>

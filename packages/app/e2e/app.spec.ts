@@ -235,3 +235,18 @@ test("opening another workshop from the sidebar menu replaces the open one", asy
     await electronApp.close();
   }
 });
+
+test("an unexpected error while opening a workshop shows up as a toast", async () => {
+  const electronApp = await launch(await temporaryUserData());
+  try {
+    const page = await electronApp.firstWindow();
+    // Stands in for a failure the user can't see otherwise, such as `wslpath` failing on Windows.
+    await electronApp.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = () => Promise.reject(new Error("the folder dialog broke"));
+    });
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await expect(page.getByText("the folder dialog broke")).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});

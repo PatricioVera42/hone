@@ -2,6 +2,7 @@ import { appErrorCodes, workshopOpenMethod, type WorkshopInfo } from "@hone/prot
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError, type HostClient } from "@/host-client.ts";
+import { reportError } from "@/report-error.ts";
 import { CreateWorkshopDialog } from "./create-workshop-dialog.tsx";
 import { NotAWorkshopDialog } from "./not-a-workshop-dialog.tsx";
 import { WelcomeScreen } from "./welcome-screen.tsx";
@@ -58,12 +59,18 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void reopenLastWorkshop(client).then((reopened) => {
-      if (cancelled) return;
-      if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
-      setWorkshop(reopened);
-      setRestoring(false);
-    });
+    void reopenLastWorkshop(client)
+      .catch((error: unknown) => {
+        // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
+        reportError(error);
+        return undefined;
+      })
+      .then((reopened) => {
+        if (cancelled) return;
+        if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
+        setWorkshop(reopened);
+        setRestoring(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -97,13 +104,13 @@ export function WorkshopSwitcher({ client }: WorkshopSwitcherProps) {
     <>
       {workshop === undefined ? (
         <WelcomeScreen
-          onOpenWorkshop={() => void openWorkshop()}
+          onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />
       ) : (
         <WorkshopScreen
           workshop={workshop}
-          onOpenWorkshop={() => void openWorkshop()}
+          onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />
       )}
