@@ -25,12 +25,21 @@ export interface Connection {
 export function createConnection(send: (message: string) => void): Connection {
   let workshopRoot: string | undefined;
   let watcher: WorkshopWatcher | undefined;
+  let opens = 0;
+  let closed = false;
 
   // Replies only once the watcher is ready, so the app sees every change made after the workshop opened.
   async function open(workshop: WorkshopInfo): Promise<WorkshopInfo> {
+    opens += 1;
+    const ticket = opens;
     const next = await watchWorkshop(workshop.root, (change) => {
       send(encodeNotification(filesChangedNotification, change));
     });
+    // The socket closed, or a later open took over, while this watcher was starting: keeping it would leak it.
+    if (closed || ticket !== opens) {
+      await next.close();
+      return workshop;
+    }
     const previous = watcher;
     watcher = next;
     workshopRoot = workshop.root;
@@ -47,6 +56,7 @@ export function createConnection(send: (message: string) => void): Connection {
       registerMethod(filesListMethod, ({ path }) => listFolder(workshopRoot, path)),
     ],
     close: async () => {
+      closed = true;
       await watcher?.close();
       watcher = undefined;
     },
