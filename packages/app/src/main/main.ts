@@ -1,9 +1,15 @@
 // Electron main: starts the host (WSL on Windows, a local `node` on Linux), then opens the window.
 import { hostReadyLine } from "@hone/protocol";
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
-import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import {
+  execFile,
+  execFileSync,
+  spawn,
+  type ChildProcessWithoutNullStreams,
+} from "node:child_process";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { AppStateFile } from "./app-state.ts";
 
 function argValue(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -54,6 +60,24 @@ function waitForReadyPort(host: ChildProcessWithoutNullStreams): Promise<number>
   });
 }
 
+/** Converts a path from the Windows folder dialog (`\\wsl.localhost\...`, `\\wsl$\...` or a drive path) to the Linux path the host uses, so a drive path becomes `/mnt/<drive>/...`. */
+function toLinuxPath(dialogPath: string): Promise<string> {
+  if (process.platform !== "win32") return Promise.resolve(dialogPath);
+  return new Promise((resolve, reject) => {
+    execFile("wsl.exe", ["-e", "wslpath", "-u", dialogPath], (error, stdout) => {
+      if (error === null) resolve(stdout.trim());
+      else reject(error);
+    });
+  });
+}
+
+async function pickFolder(window: BrowserWindow): Promise<string | undefined> {
+  const result = await dialog.showOpenDialog(window, { properties: ["openDirectory"] });
+  const [folder] = result.filePaths;
+  if (result.canceled || folder === undefined) return undefined;
+  return toLinuxPath(folder);
+}
+
 interface RunningHost {
   readonly connection: string;
   kill(): void;
@@ -93,6 +117,15 @@ async function start(): Promise<void> {
     host.current.kill();
     host.current = await startHost();
     window.webContents.reload();
+  });
+
+  ipcMain.handle("dialog:pick-folder", () => pickFolder(window));
+
+  const appState = new AppStateFile(path.join(app.getPath("userData"), "state.json"));
+  ipcMain.handle("state:get-last-workshop", () => appState.getLastWorkshop());
+  ipcMain.handle("state:set-last-workshop", (_event, root: unknown) => {
+    if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
+    return appState.setLastWorkshop(root);
   });
 
   const devServer = argValue("dev-server");
