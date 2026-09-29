@@ -91,6 +91,8 @@ export function WorkshopSwitcher({ client, openFiles }: WorkshopSwitcherProps) {
     const folder = await window.hone.pickFolder();
     if (folder === undefined) return;
     await openFiles.flush();
+    // A save failed and its error toast is showing; switching would drop those edits.
+    if (openFiles.hasPendingEdits()) return;
     try {
       show(await client.call(workshopOpenMethod, { path: folder }));
     } catch (error) {

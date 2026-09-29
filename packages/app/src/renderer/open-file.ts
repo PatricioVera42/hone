@@ -60,6 +60,11 @@ export class OpenFile {
     return this.enqueue(() => this.save());
   }
 
+  /** Whether it has edits not saved yet, such as after a save that failed. */
+  hasPendingEdits(): boolean {
+    return this.pendingEdits;
+  }
+
   /** Handles a `files.changed`, ignoring changes to other paths. */
   receive(change: FileChange): void {
     if (change.path !== this.options.path) return;
@@ -157,5 +162,10 @@ export class OpenFiles {
   /** Saves every file's pending edits. Resolves once all the saves are done. */
   async flush(): Promise<void> {
     await Promise.all([...this.files].map((file) => file.flush()));
+  }
+
+  /** Whether any file has edits not saved yet, such as after a flush whose saves failed. */
+  hasPendingEdits(): boolean {
+    return [...this.files].some((file) => file.hasPendingEdits());
   }
 }
