@@ -1,6 +1,6 @@
 // End-to-end: drives the built app with Playwright (README: "End-to-end tests").
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -246,6 +246,67 @@ test("an unexpected error while opening a workshop shows up as a toast", async (
     });
     await page.getByRole("button", { name: "Open workshop" }).click();
     await expect(page.getByText("the folder dialog broke")).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("the sidebar lists the workshop's files, folders first, and loads a folder when it's expanded", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await writeFile(path.join(root, "Agenda.md"), "");
+  await mkdir(path.join(root, "physics"));
+  await mkdir(path.join(root, "Math"));
+  await writeFile(path.join(root, "biology.md"), "");
+  await mkdir(path.join(root, "node_modules"));
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    // `node_modules` is left out of the exact list: the host omits it.
+    await expect(tree.getByRole("button")).toHaveText([
+      ".hone",
+      "Math",
+      "physics",
+      "Agenda.md",
+      "biology.md",
+    ]);
+
+    // Written after the tree loaded the root, so it only shows up if expanding lists the folder then.
+    await writeFile(path.join(root, "Math", "algebra.md"), "");
+    const math = tree.getByRole("button", { name: "Math" });
+    await expect(math).toHaveAttribute("aria-expanded", "false");
+    await math.click();
+    await expect(math).toHaveAttribute("aria-expanded", "true");
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeVisible();
+
+    await math.click();
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeHidden();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a folder that can't be listed shows an error and stops loading", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  const outside = path.join(temporary, "outside");
+  await mkdir(outside);
+  await symlink(outside, path.join(root, "escape"));
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    const tree = page.getByRole("navigation", { name: "Files" });
+    await tree.getByRole("button", { name: "escape" }).click();
+
+    await expect(page.getByText("escape is outside the workshop")).toBeVisible();
+    await expect(tree.locator('[data-sidebar="menu-skeleton"]')).toHaveCount(0);
   } finally {
     await electronApp.close();
   }
