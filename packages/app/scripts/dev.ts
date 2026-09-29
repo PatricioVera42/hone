@@ -36,9 +36,10 @@ function windowsElectron(): string {
   const cacheDir = path.join(toWslPath(localAppData), "hone-dev", `electron-${version}`);
   fillWindowsElectronCache(path.join(appDir, "node_modules/electron"), cacheDir, (platform) => {
     // Electron downloads its binary on demand; ELECTRON_INSTALL_PLATFORM asks for the Windows one even though we run in WSL.
+    // Always set, so an override inherited from the shell can't pick the platform of the restoring install.
     execFileSync("pnpm", ["exec", "install-electron", "--no"], {
       cwd: appDir,
-      env: platform ? { ...process.env, ELECTRON_INSTALL_PLATFORM: platform } : process.env,
+      env: { ...process.env, ELECTRON_INSTALL_PLATFORM: platform ?? process.platform },
       stdio: "inherit",
     });
   });
