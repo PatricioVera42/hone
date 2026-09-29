@@ -1,4 +1,5 @@
 import { AppError, type FileContent, type FileEntry } from "@hone/protocol";
+import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
 import { inspectFile } from "./inspect-file.ts";
@@ -61,4 +62,38 @@ export async function readFile(
   }
   if (!inspection.text) throw new AppError("NotText", `${protocolPath} is not a text file`);
   return { content: inspection.content, version: inspection.version };
+}
+
+/**
+ * Replaces a text file of the open workshop with `content` as UTF-8 if it's still at `baseVersion`, through a
+ * temporary sibling renamed onto it, keeping its mode. A symlink keeps pointing at the file, which gets the content.
+ * Fails like {@link resolveWorkshopPath}, with `NotFound` for a folder and `VersionConflict` when the file on disk
+ * is at another version. Returns the new version.
+ */
+export async function writeFile(
+  workshopRoot: string | undefined,
+  protocolPath: string,
+  content: string,
+  baseVersion: string,
+): Promise<{ version: string }> {
+  const file = await resolveWorkshopPath(workshopRoot, protocolPath);
+  const stats = await fs.stat(file);
+  if (!stats.isFile()) throw new AppError("NotFound", `${protocolPath} is not a file`);
+  const inspection = await inspectFile(file);
+  if (!inspection.withinSizeLimit || inspection.version !== baseVersion) {
+    throw new AppError("VersionConflict", `${protocolPath} changed on disk`);
+  }
+  const bytes = Buffer.from(content, "utf8");
+  // The watcher ignores `*.tmp.*` names, so only the rename onto the file gets reported.
+  const temporary = `${file}.tmp.hone.${randomBytes(6).toString("hex")}`;
+  try {
+    await fs.writeFile(temporary, bytes);
+    // Set apart from the write, which the umask would otherwise trim.
+    await fs.chmod(temporary, stats.mode);
+    await fs.rename(temporary, file);
+  } catch (error) {
+    await fs.rm(temporary, { force: true });
+    throw error;
+  }
+  return { version: createHash("sha256").update(bytes).digest("hex") };
 }

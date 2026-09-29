@@ -15,6 +15,7 @@ export {
   filesChangedNotification,
   filesListMethod,
   filesReadMethod,
+  filesWriteMethod,
   type FileChange,
   type FileContent,
   type FileEntry,

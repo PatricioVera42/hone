@@ -378,6 +378,127 @@ describe("files.read", () => {
   });
 });
 
+describe("files.write", () => {
+  const helloVersion = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+  it("writes the content when the base version matches, and returns the new version", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "hello");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", { path: "note.md", content: "world", baseVersion: helloVersion }),
+    ).resolves.toStrictEqual({
+      version: "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7",
+    });
+    await expect(fs.readFile(path.join(root, "note.md"), "utf8")).resolves.toBe("world");
+  });
+
+  it("fails with VersionConflict for a stale base version, leaving the file untouched", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "changed by an agent");
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", { path: "note.md", content: "world", baseVersion: helloVersion }),
+    ).rejects.toMatchObject({ code: -32005 });
+    await expect(fs.readFile(path.join(root, "note.md"), "utf8")).resolves.toBe(
+      "changed by an agent",
+    );
+  });
+
+  it("reports the write as one change to the target, never to its temporary", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "hello");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.write", {
+      path: "note.md",
+      content: "world",
+      baseVersion: helloVersion,
+    });
+
+    const testHost = host;
+    await vi.waitFor(() => {
+      expect(fileChanges(testHost)).not.toStrictEqual([]);
+    });
+    // Leaves time for any stray notification after the first to arrive.
+    await setTimeout(200);
+    expect(fileChanges(testHost)).toStrictEqual([
+      {
+        path: "note.md",
+        change: "changed",
+        kind: "file",
+        version: "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7",
+      },
+    ]);
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone", "note.md"]);
+  });
+
+  it("keeps the file's mode", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "run.sh"), "hello", { mode: 0o755 });
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.write", { path: "run.sh", content: "world", baseVersion: helloVersion });
+
+    expect((await fs.stat(path.join(root, "run.sh"))).mode & 0o777).toBe(0o755);
+  });
+
+  it("writes through a symlink onto its target, keeping the symlink", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.writeFile(path.join(root, "note.md"), "hello");
+    await fs.symlink("note.md", path.join(root, "link.md"));
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.write", {
+      path: "link.md",
+      content: "world",
+      baseVersion: helloVersion,
+    });
+
+    expect((await fs.lstat(path.join(root, "link.md"))).isSymbolicLink()).toBe(true);
+    await expect(fs.readFile(path.join(root, "note.md"), "utf8")).resolves.toBe("world");
+  });
+
+  it("fails with NotFound for a file that doesn't exist, creating nothing", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", { path: "missing.md", content: "world", baseVersion: helloVersion }),
+    ).rejects.toMatchObject({ code: -32003 });
+    await expect(fs.readdir(root)).resolves.toStrictEqual([".hone"]);
+  });
+
+  it("fails with NotFound for a folder", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "notes"));
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", { path: "notes", content: "world", baseVersion: helloVersion }),
+    ).rejects.toMatchObject({ code: -32003 });
+  });
+
+  it("fails with OutsideWorkshop for a path outside the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await host.call("workshop.open", { path: root });
+
+    await expect(
+      host.call("files.write", { path: "../note.md", content: "world", baseVersion: helloVersion }),
+    ).rejects.toMatchObject({ code: -32004 });
+  });
+});
+
 /** The `files.changed` notifications received so far, as their params. */
 function fileChanges(testHost: TestHost): unknown[] {
   return testHost.notifications

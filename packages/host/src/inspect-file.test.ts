@@ -32,6 +32,17 @@ describe("inspectFile", () => {
     await expect(inspectFile(file)).resolves.toMatchObject({ withinSizeLimit: true, text: true });
   });
 
+  it("reports a file that isn't valid UTF-8 as not text, since saving it would lose its bytes", async () => {
+    // "café" in Latin-1.
+    const file = await writeTemporary(Buffer.from([0x63, 0x61, 0x66, 0xe9]));
+    await expect(inspectFile(file)).resolves.toMatchObject({ withinSizeLimit: true, text: false });
+  });
+
+  it("keeps a UTF-8 byte order mark in the content, so saving writes it back", async () => {
+    const file = await writeTemporary(Buffer.from([0xef, 0xbb, 0xbf, 0x61]));
+    await expect(inspectFile(file)).resolves.toMatchObject({ text: true, content: "\uFEFFa" });
+  });
+
   it("accepts a file of exactly 5 MB", async () => {
     const file = await writeTemporary(Buffer.alloc(5 * 1024 * 1024, "a"));
     await expect(inspectFile(file)).resolves.toMatchObject({ withinSizeLimit: true });

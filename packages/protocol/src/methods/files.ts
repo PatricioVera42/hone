@@ -48,10 +48,26 @@ export type FileContent = z.infer<typeof fileContentSchema>;
 /**
  * Reads a text file as UTF-8, keeping its line endings. `version` is the SHA-256 hex of its bytes, as in `files.changed`.
  * Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` (also for a folder), `TooLarge` above 5 MB and `NotText`
- * when its first 8 KB contain a NUL byte.
+ * when its first 8 KB contain a NUL byte or it isn't valid UTF-8 (saving it would lose the bytes of another encoding).
  */
 export const filesReadMethod: MethodDefinition<{ path: string }, FileContent> = {
   name: "files.read",
   params: z.object({ path: z.string() }),
   result: fileContentSchema,
+};
+
+/**
+ * Replaces an existing text file's content, written as UTF-8 exactly as given (line endings included), if the file
+ * is still at `baseVersion`. It writes a temporary sibling `<name>.tmp.hone.<random>`, which the watcher ignores,
+ * then renames it onto the file, so readers never see half a file. Returns the new version.
+ * Fails with `NoWorkshopOpen`, `OutsideWorkshop`, `NotFound` (also for a folder; it never creates files) and
+ * `VersionConflict` when the file on disk is at another version, leaving it untouched.
+ */
+export const filesWriteMethod: MethodDefinition<
+  { path: string; content: string; baseVersion: string },
+  { version: string }
+> = {
+  name: "files.write",
+  params: z.object({ path: z.string(), content: z.string(), baseVersion: z.string() }),
+  result: z.object({ version: z.string() }),
 };
