@@ -55,15 +55,19 @@ async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | un
 }
 
 /**
- * Holds the open workshop, if any, and opens or creates another in its place, saving pending edits and the layout
- * before the host switches: once it has, a late save would land on the same path in the other workshop, and the
- * layout loses its terminals as the host kills their shells.
+ * Holds the open workshop, if any, and opens or creates another in its place, saving pending edits and pausing
+ * layout saves before the host switches: once it has, a late save would land on the same path in the other
+ * workshop, and the layout loses its terminals as the host kills their shells. Layout saves resume once the
+ * workshop shown has changed, or the switch didn't happen.
  */
 export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitcherProps) {
   const [restoring, setRestoring] = useState(true);
   const [workshop, setWorkshop] = useState<WorkshopInfo>();
   const [notAWorkshopFolder, setNotAWorkshopFolder] = useState<string>();
   const [createDialog, setCreateDialog] = useState<CreateDialogState>(closedCreateDialog);
+
+  // After the children's effects, so the old workshop's editor area has stopped reporting layout changes.
+  useEffect(() => layouts.resume(), [layouts, workshop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,12 +97,14 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
   async function openWorkshop(): Promise<void> {
     const folder = await window.hone.pickFolder();
     if (folder === undefined) return;
-    await Promise.all([openFiles.flush(), layouts.flush()]);
+    await openFiles.flush();
     // A save failed and its error toast is showing; switching would drop those edits.
     if (openFiles.hasPendingEdits()) return;
+    await layouts.pause();
     try {
       show(await client.call(workshopOpenMethod, { path: folder }));
     } catch (error) {
+      layouts.resume();
       if (!isNotAWorkshop(error)) throw error;
       setNotAWorkshopFolder(folder);
     }
@@ -108,7 +114,7 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     // The dialog is modal, so no edit or layout change can happen between these saves and the host switching
     // workshops.
     void openFiles.flush();
-    void layouts.flush();
+    void layouts.pause();
     setCreateDialog({ open: true, initialParent });
   }
 
@@ -148,7 +154,10 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
         client={client}
         open={createDialog.open}
         initialParent={createDialog.initialParent}
-        onOpenChange={(open) => setCreateDialog({ ...createDialog, open })}
+        onOpenChange={(open) => {
+          if (!open) layouts.resume();
+          setCreateDialog({ ...createDialog, open });
+        }}
         onCreated={(created) => {
           setCreateDialog(closedCreateDialog);
           show(created);

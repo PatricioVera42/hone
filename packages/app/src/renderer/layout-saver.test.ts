@@ -42,12 +42,23 @@ describe("LayoutSaver", () => {
     expect(saved).toStrictEqual([["/studies", "arranged"]]);
   });
 
-  it("never saves a discarded change", async () => {
+  it("saves a pending change when paused, and ignores changes until resumed", async () => {
     const { saver, saved } = recordingSaver();
-    saver.changed("/studies", "half closed");
-    saver.discard();
+    saver.changed("/studies", "arranged");
+    await saver.pause();
+    expect(saved).toStrictEqual([["/studies", "arranged"]]);
+
+    saver.changed("/studies", "terminals closed");
     await vi.advanceTimersByTimeAsync(layoutSaveDelayMs);
     await saver.flush();
-    expect(saved).toStrictEqual([]);
+    expect(saved).toStrictEqual([["/studies", "arranged"]]);
+
+    saver.resume();
+    saver.changed("/novel", "default");
+    await vi.advanceTimersByTimeAsync(layoutSaveDelayMs);
+    expect(saved).toStrictEqual([
+      ["/studies", "arranged"],
+      ["/novel", "default"],
+    ]);
   });
 });

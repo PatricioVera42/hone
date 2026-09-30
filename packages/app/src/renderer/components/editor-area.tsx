@@ -185,7 +185,7 @@ interface EditorAreaProps {
 /**
  * The dockview layout that holds editor and terminal tabs. It opens with the workshop's saved layout, or with an
  * empty editor group above a terminal at the workshop root, and saves the layout as it changes. Before the host
- * switches workshops, `layouts` must be flushed: what changes after that is dropped. Ctrl+W closes the active tab.
+ * switches workshops, `layouts` must be paused: what changes after that is dropped. Ctrl+W closes the active tab.
  * Ctrl+`, even inside a terminal, opens a terminal at the workshop root, in the group of the last terminal that was
  * active, or else in a new group at the bottom.
  */
@@ -225,12 +225,7 @@ export function EditorArea({
     const changed = editors.onDidLayoutChange(() => {
       layouts.changed(workshopRoot, editors.toJSON());
     });
-    return () => {
-      changed.dispose();
-      // The layout was saved before the host switched workshops. Since then, the host has been killing this
-      // workshop's shells, whose tabs close as they exit: that's not a layout to come back to.
-      layouts.discard();
-    };
+    return () => changed.dispose();
   }, [editors, layouts, workshopRoot]);
 
   useEffect(() => {

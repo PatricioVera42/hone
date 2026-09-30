@@ -901,6 +901,31 @@ test("a terminal whose shell can't start closes its tab and shows the error", as
   }
 });
 
+/** Drags the tab of the terminal titled `title` onto the right edge of `editor`, splitting it off to the editor's right. */
+async function moveTerminalRightOf(page: Page, title: string, editor: Locator) {
+  const terminal = page.getByRole("region", { name: `Terminal in ${title}` });
+  // Retried, since a drag can end before dockview has shown where it would drop.
+  await expect(async () => {
+    const tab = await boxOf(page.getByRole("tab", { name: title }));
+    const editorBox = await boxOf(editor);
+    await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(editorBox.x + editorBox.width - 5, editorBox.y + editorBox.height / 2, {
+      steps: 10,
+    });
+    await page.mouse.up();
+    expect((await boxOf(terminal)).x).toBeGreaterThan((await boxOf(editor)).x + 100);
+  }).toPass();
+}
+
+/** Checks that the terminal titled `title` sits to the right of `editor`, top-aligned with it. */
+async function expectTerminalRightOf(page: Page, title: string, editor: Locator) {
+  const editorBox = await boxOf(editor);
+  const terminal = await boxOf(page.getByRole("region", { name: `Terminal in ${title}` }));
+  expect(terminal.x).toBeGreaterThan(editorBox.x + editorBox.width / 2);
+  expect(terminal.y).toBeLessThan(editorBox.y + editorBox.height / 2);
+}
+
 test("a fresh workshop shows an empty editor area and a terminal at the bottom", async () => {
   const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
@@ -928,21 +953,7 @@ test("relaunching restores the workshop's tabs and where they were, with a worki
   try {
     await tree.getByRole("button", { name: "algebra.md" }).click();
     await tree.getByRole("button", { name: "geometry.md" }).click();
-    const editor = page.getByRole("textbox", { name: "geometry.md" });
-    const terminal = page.getByRole("region", { name: "Terminal in studies" });
-    // Retried, since a drag can end before dockview has shown where it would drop.
-    await expect(async () => {
-      const tab = await boxOf(page.getByRole("tab", { name: "studies" }));
-      const editorBox = await boxOf(editor);
-      await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2);
-      await page.mouse.down();
-      // Dropped on the editor group's right edge, which splits the terminal off to its right.
-      await page.mouse.move(editorBox.x + editorBox.width - 5, editorBox.y + editorBox.height / 2, {
-        steps: 10,
-      });
-      await page.mouse.up();
-      expect((await boxOf(terminal)).x).toBeGreaterThan((await boxOf(editor)).x + 100);
-    }).toPass();
+    await moveTerminalRightOf(page, "studies", page.getByRole("textbox", { name: "geometry.md" }));
   } finally {
     await electronApp.close();
   }
@@ -955,13 +966,11 @@ test("relaunching restores the workshop's tabs and where they were, with a worki
     await expect(relaunchedPage.getByRole("textbox", { name: "geometry.md" })).toContainText(
       "Circles.",
     );
-
-    const editor = await boxOf(relaunchedPage.getByRole("textbox", { name: "geometry.md" }));
-    const terminal = await boxOf(
-      relaunchedPage.getByRole("region", { name: "Terminal in studies" }),
+    await expectTerminalRightOf(
+      relaunchedPage,
+      "studies",
+      relaunchedPage.getByRole("textbox", { name: "geometry.md" }),
     );
-    expect(terminal.x).toBeGreaterThan(editor.x + editor.width / 2);
-    expect(terminal.y).toBeLessThan(editor.y + editor.height / 2);
 
     await runInTerminal(relaunchedPage, "studies", "echo hello", "hello");
   } finally {
@@ -1005,7 +1014,8 @@ test("switching workshops keeps each one's layout", async () => {
   const work = await makeWorkshop(await mkdtemp(path.join(tmpdir(), "hone-e2e-")), "work");
   try {
     await tree.getByRole("button", { name: "algebra.md" }).click();
-    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    const editor = page.getByRole("textbox", { name: "algebra.md" });
+    await moveTerminalRightOf(page, "studies", editor);
 
     await pickFolderInDialog(electronApp, work);
     await page.getByRole("button", { name: "studies", exact: true }).click();
@@ -1021,6 +1031,7 @@ test("switching workshops keeps each one's layout", async () => {
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
     await expect(page.getByRole("tab")).toHaveCount(2);
+    await expectTerminalRightOf(page, "studies", editor);
   } finally {
     await electronApp.close();
   }
@@ -1038,5 +1049,26 @@ test("Open terminal here on a folder opens a terminal in that folder", async () 
     await runInTerminal(page, "math", "pwd", await realpath(path.join(root, "math")));
   } finally {
     await electronApp.close();
+  }
+});
+
+test("relaunching restores a terminal in the folder it was opened in", async () => {
+  const { root, userData, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "math"));
+  });
+  try {
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Open terminal here" }).click();
+    await expect(page.getByRole("tab", { name: "math" })).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+
+  const relaunched = await launch(userData);
+  try {
+    const relaunchedPage = await relaunched.firstWindow();
+    await runInTerminal(relaunchedPage, "math", "pwd", await realpath(path.join(root, "math")));
+  } finally {
+    await relaunched.close();
   }
 });
