@@ -5,35 +5,28 @@ import {
   type DockviewReadyEvent,
   type IDockviewPanel,
   type IDockviewPanelProps,
+  type SerializedDockview,
 } from "dockview-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { z } from "zod";
+import {
+  editorPanelParamsSchema,
+  isRestorableLayout,
+  terminalPanelParamsSchema,
+  type EditorPanelParams,
+  type TerminalPanelParams,
+} from "@/editor-layout.ts";
 import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import type { HostClient } from "@/host-client.ts";
+import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
+import { reportError } from "@/report-error.ts";
 import { EditorPanel } from "./editor-panel.tsx";
 import { TerminalPanel } from "./terminal-panel.tsx";
-
-const editorPanelParamsSchema = z.object({
-  /** The file's protocol path, relative to the workshop root. It changes when the file or a folder above it is renamed. */
-  path: z.string(),
-});
-
-/** An editor panel's parameters in the layout, which is what gets saved when the layout is. */
-type EditorPanelParams = z.infer<typeof editorPanelParamsSchema>;
 
 /** The protocol path of the file a panel shows, from its parameters. */
 function panelPath(panel: IDockviewPanel): string | undefined {
   return editorPanelParamsSchema.safeParse(panel.params).data?.path;
 }
-
-const terminalPanelParamsSchema = z.object({
-  /** The folder the terminal's shell started in, as a protocol path relative to the workshop root. */
-  cwd: z.string(),
-});
-
-/** A terminal panel's parameters in the layout. */
-type TerminalPanelParams = z.infer<typeof terminalPanelParamsSchema>;
 
 function isTerminal(panel: IDockviewPanel): boolean {
   return terminalPanelParamsSchema.safeParse(panel.params).success;
@@ -70,6 +63,7 @@ function TerminalPanelFromLayout({ api, params }: IDockviewPanelProps<TerminalPa
       client={context.client}
       cwd={params.cwd}
       label={`Terminal in ${api.title ?? params.cwd}`}
+      isActive={() => api.isActive}
       onExit={() => api.close()}
     />
   );
@@ -103,9 +97,9 @@ function openTerminalTab(
   cwd: string,
   title: string,
   group: IDockviewPanel["group"] | undefined,
-): void {
+): IDockviewPanel {
   const params: TerminalPanelParams = { cwd };
-  editors.addPanel({
+  return editors.addPanel({
     id: crypto.randomUUID(),
     component: "terminal",
     title,
@@ -136,23 +130,108 @@ export function closeEditorTabs(editors: DockviewApi, path: string): void {
   }
 }
 
+// The share of the height the terminal at the bottom takes in the default layout.
+const defaultTerminalHeightShare = 0.3;
+
+/** An empty group for editors, with a terminal at the workshop root below it. */
+function showDefaultLayout(editors: DockviewApi, workshopName: string): void {
+  const editorGroup = editors.addGroup();
+  const terminal = openTerminalTab(editors, "", workshopName, undefined);
+  terminal.group.api.setSize({ height: editors.height * defaultTerminalHeightShare });
+  // So files open above the terminal, not next to it.
+  editorGroup.api.setActive();
+}
+
+/** Restores a saved layout, or shows the default one when there's none or dockview can't read it. */
+function showLayout(
+  editors: DockviewApi,
+  saved: SerializedDockview | undefined,
+  workshopName: string,
+): void {
+  if (saved !== undefined) {
+    try {
+      editors.fromJSON(saved);
+      return;
+    } catch {
+      // A layout that validated but is broken deeper down, in the grid, falls back to the default.
+      editors.clear();
+    }
+  }
+  showDefaultLayout(editors, workshopName);
+}
+
+type LayoutLoad =
+  | { readonly status: "loading" }
+  | { readonly status: "loaded"; readonly saved: SerializedDockview | undefined };
+
+/** The editor area, once ready, for acting on its tabs from outside. */
+export interface Editors {
+  readonly api: DockviewApi;
+  /** Opens a terminal in the folder at `cwd`, titled `title`, where Ctrl+` would open one. */
+  openTerminal(cwd: string, title: string): void;
+}
+
 interface EditorAreaProps {
   readonly client: HostClient;
+  /** The workshop's root, which its layout is saved under. */
+  readonly workshopRoot: string;
   /** Titles a terminal at the workshop root. */
   readonly workshopName: string;
   readonly openFiles: OpenFiles;
-  readonly onReady: (editors: DockviewApi) => void;
+  readonly layouts: LayoutSaver;
+  readonly onReady: (editors: Editors) => void;
 }
 
 /**
- * The dockview layout that holds editor and terminal tabs. Ctrl+W closes the active tab. Ctrl+`, even inside a
- * terminal, opens a terminal at the workshop root, in the group of the last terminal that was active, or else in a
- * new group at the bottom.
+ * The dockview layout that holds editor and terminal tabs. It opens with the workshop's saved layout, or with an
+ * empty editor group above a terminal at the workshop root, and saves the layout as it changes. Before the host
+ * switches workshops, `layouts` must be flushed: what changes after that is dropped. Ctrl+W closes the active tab.
+ * Ctrl+`, even inside a terminal, opens a terminal at the workshop root, in the group of the last terminal that was
+ * active, or else in a new group at the bottom.
  */
-export function EditorArea({ client, workshopName, openFiles, onReady }: EditorAreaProps) {
+export function EditorArea({
+  client,
+  workshopRoot,
+  workshopName,
+  openFiles,
+  layouts,
+  onReady,
+}: EditorAreaProps) {
+  const [layoutLoad, setLayoutLoad] = useState<LayoutLoad>({ status: "loading" });
   const [editors, setEditors] = useState<DockviewApi>();
   const context = useMemo(() => ({ client, openFiles }), [client, openFiles]);
   const lastTerminal = useRef<IDockviewPanel>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.hone
+      .loadLayout(workshopRoot)
+      .catch((error: unknown) => {
+        // Opens with the default layout, so a failure never leaves the editor area blank.
+        reportError(error);
+        return undefined;
+      })
+      .then((saved) => {
+        if (cancelled) return;
+        setLayoutLoad({ status: "loaded", saved: isRestorableLayout(saved) ? saved : undefined });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workshopRoot]);
+
+  useEffect(() => {
+    if (editors === undefined) return undefined;
+    const changed = editors.onDidLayoutChange(() => {
+      layouts.changed(workshopRoot, editors.toJSON());
+    });
+    return () => {
+      changed.dispose();
+      // The layout was saved before the host switched workshops. Since then, the host has been killing this
+      // workshop's shells, whose tabs close as they exit: that's not a layout to come back to.
+      layouts.discard();
+    };
+  }, [editors, layouts, workshopRoot]);
 
   useEffect(() => {
     if (editors === undefined) return undefined;
@@ -194,9 +273,21 @@ export function EditorArea({ client, workshopName, openFiles, onReady }: EditorA
   }, [editors]);
 
   function handleReady(event: DockviewReadyEvent): void {
-    setEditors(event.api);
-    onReady(event.api);
+    const { api } = event;
+    if (layoutLoad.status === "loaded") showLayout(api, layoutLoad.saved, workshopName);
+    // Shown before the effect that tracks the last active terminal starts, so Ctrl+` joins one from the layout.
+    lastTerminal.current = api.panels.find(isTerminal);
+    setEditors(api);
+    onReady({
+      api,
+      openTerminal: (cwd, title) => {
+        openTerminalTab(api, cwd, title, lastTerminal.current?.group);
+      },
+    });
   }
+
+  // Dockview starts once the saved layout is in, so it never shows the default layout first.
+  if (layoutLoad.status === "loading") return null;
 
   return (
     <EditorAreaContext value={context}>

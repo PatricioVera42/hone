@@ -152,6 +152,14 @@ async function start(): Promise<void> {
     if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
     return appState.setLastWorkshop(root);
   });
+  ipcMain.handle("state:load-layout", (_event, root: unknown) => {
+    if (typeof root !== "string") throw new Error("loadLayout needs a string root");
+    return appState.getLayout(root);
+  });
+  ipcMain.handle("state:save-layout", (_event, root: unknown, layout: unknown) => {
+    if (typeof root !== "string") throw new Error("saveLayout needs a string root");
+    return appState.setLayout(root, layout);
+  });
 
   const devServer = argValue("dev-server");
   if (devServer === undefined) {

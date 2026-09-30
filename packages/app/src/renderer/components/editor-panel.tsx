@@ -1,5 +1,5 @@
 import { appErrorCodes, filesChangedNotification, filesReadMethod } from "@hone/protocol";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { OpenFile, type EditorContent, type OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -28,18 +28,20 @@ interface EditorPanelProps {
   readonly openFiles: OpenFiles;
   /** The file's protocol path, relative to the workshop root. A rename changes it while the tab stays open. */
   readonly path: string;
-  /** Closes the panel's tab, for when the file is deleted. */
+  /** Closes the panel's tab, for when the file is deleted, or was already gone when the tab opened. */
   readonly onDeleted: () => void;
 }
 
 /**
  * One editor tab's content: the file in an editor that saves itself and follows changes on disk, or a message when
- * it can't be shown.
+ * it can't be shown. A file that's gone, such as one deleted since its tab was saved in the layout, closes the tab
+ * without a message.
  */
 export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // Read once, from where the file was when its tab opened: a rename moves the open file along instead.
   const [openedPath] = useState(path);
+  const fileMissingEvent = useEffectEvent(onDeleted);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +51,12 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
         if (!cancelled) setState({ status: "loaded", content, version });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "unopenable", message: unopenableMessage(error) });
+        if (cancelled) return;
+        if (error instanceof HostCallError && error.code === appErrorCodes.NotFound) {
+          fileMissingEvent();
+          return;
+        }
+        setState({ status: "unopenable", message: unopenableMessage(error) });
       });
     return () => {
       cancelled = true;

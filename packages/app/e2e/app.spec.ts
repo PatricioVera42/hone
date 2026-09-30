@@ -4,9 +4,20 @@ import {
   expect,
   test,
   type ElectronApplication,
+  type Locator,
   type Page,
 } from "@playwright/test";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -93,7 +104,7 @@ test("opens a workshop from a folder nested inside it", async () => {
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, nested);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
   } finally {
     await electronApp.close();
   }
@@ -108,7 +119,7 @@ test("Ctrl+B collapses and expands the sidebar", async () => {
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    const header = page.getByRole("button", { name: "studies" });
+    const header = page.getByRole("button", { name: "studies", exact: true });
     await expect(header).toBeInViewport();
 
     await page.keyboard.press("Control+b");
@@ -153,7 +164,7 @@ test("creates a workshop and opens it", async () => {
     await dialog.getByLabel("Name").fill("studies");
     await dialog.getByRole("button", { name: "Create" }).click();
 
-    await expect(page.getByRole("button", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
     const generator = await stat(path.join(temporary, "studies", ".hone", "generator"));
     expect(generator.isDirectory()).toBe(true);
   } finally {
@@ -198,7 +209,7 @@ test("relaunching reopens the last workshop, unless it was deleted", async () =>
     const page = await first.firstWindow();
     await pickFolderInDialog(first, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
   } finally {
     await first.close();
   }
@@ -206,7 +217,7 @@ test("relaunching reopens the last workshop, unless it was deleted", async () =>
   const second = await launch(userData);
   try {
     const page = await second.firstWindow();
-    await expect(page.getByRole("button", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
   } finally {
     await second.close();
   }
@@ -231,12 +242,12 @@ test("opening another workshop from the sidebar menu replaces the open one", asy
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, studies);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await page.getByRole("button", { name: "studies" }).click();
+    await page.getByRole("button", { name: "studies", exact: true }).click();
 
     await pickFolderInDialog(electronApp, work);
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "studies" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeHidden();
   } finally {
     await electronApp.close();
   }
@@ -362,11 +373,11 @@ test("the sidebar and its file tree stay visible in a narrow window", async () =
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
 
     await resizeWindow(electronApp, 600, 600);
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(768);
-    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
     const tree = page.getByRole("navigation", { name: "Files" });
     await expect(tree.getByRole("button", { name: ".hone" })).toBeInViewport();
   } finally {
@@ -391,10 +402,10 @@ test("the sidebar toggle hides and shows the sidebar, keeping expanded folders",
 
     const toggle = page.getByRole("button", { name: "Toggle Sidebar" });
     await toggle.click();
-    await expect(page.getByRole("button", { name: "studies" })).not.toBeInViewport();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).not.toBeInViewport();
 
     await toggle.click();
-    await expect(page.getByRole("button", { name: "studies" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
     await expect(tree.getByRole("button", { name: "Math" })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -453,11 +464,11 @@ test("clicking a note opens it in an editor tab once, and Ctrl+W closes it", asy
     await expect(editor).toContainText("Groups and rings.");
 
     await tree.getByRole("button", { name: "algebra.md" }).click();
-    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(1);
 
     await editor.click();
     await page.keyboard.press("Control+w");
-    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
     await expect(editor).toBeHidden();
   } finally {
     await electronApp.close();
@@ -487,7 +498,7 @@ test("a binary file shows a message instead of an editor", async () => {
   }
 });
 
-test("opening another workshop closes every editor tab", async () => {
+test("opening another workshop closes every editor tab and shows that workshop's layout", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const studies = await makeWorkshop(temporary, "studies");
   const work = await makeWorkshop(temporary, "work");
@@ -504,11 +515,12 @@ test("opening another workshop closes every editor tab", async () => {
       .click();
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
 
-    await page.getByRole("button", { name: "studies" }).click();
+    await page.getByRole("button", { name: "studies", exact: true }).click();
     await pickFolderInDialog(electronApp, work);
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
   } finally {
     await electronApp.close();
   }
@@ -580,7 +592,7 @@ test("deleting an open file on disk closes its tab", async () => {
   try {
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
     await rm(file);
-    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
   } finally {
     await electronApp.close();
   }
@@ -613,10 +625,10 @@ test("switching workshops right after typing saves the edits first", async () =>
     await editor.click();
     await page.keyboard.press("Control+End");
     await page.keyboard.type("Rings.");
-    await page.getByRole("button", { name: "studies" }).click();
+    await page.getByRole("button", { name: "studies", exact: true }).click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
 
-    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
     await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
   } finally {
     await electronApp.close();
@@ -638,13 +650,14 @@ async function openWorkshopWith(setUp: (root: string) => Promise<void>) {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const root = await makeWorkshop(temporary, "studies");
   await setUp(root);
-  const electronApp = await launch(path.join(temporary, "user-data"));
+  const userData = path.join(temporary, "user-data");
+  const electronApp = await launch(userData);
   const page = await electronApp.firstWindow();
   await pickFolderInDialog(electronApp, root);
   await page.getByRole("button", { name: "Open workshop" }).click();
   const tree = page.getByRole("navigation", { name: "Files" });
   await expect(tree.getByRole("button", { name: ".hone" })).toBeVisible();
-  return { root, electronApp, page, tree };
+  return { root, userData, electronApp, page, tree };
 }
 
 test("New note on a folder creates the note with .md appended and opens it", async () => {
@@ -705,7 +718,7 @@ test("F2 on an open file renames it on disk and in its tab", async () => {
     await name.press("Enter");
 
     await expect(page.getByRole("tab", { name: "plan.md" })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "idea.md" })).toHaveCount(0);
     await expect(tree.getByRole("button", { name: "plan.md" })).toBeVisible();
     await expect(readdir(root)).resolves.not.toContain("idea.md");
     await expect(readFile(path.join(root, "plan.md"), "utf8")).resolves.toBe("Groups.\n");
@@ -762,7 +775,8 @@ test("deleting a folder says how many files it holds, and confirming removes it 
     await tree.getByRole("button", { name: "math" }).click();
     await tree.getByRole("button", { name: "groups.md" }).click();
     await tree.getByRole("button", { name: "other.md" }).click();
-    await expect(page.getByRole("tab")).toHaveCount(2);
+    await expect(page.getByRole("tab", { name: "groups.md" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "other.md" })).toBeVisible();
 
     await tree.getByRole("button", { name: "math" }).press("Delete");
     const dialog = page.getByRole("alertdialog");
@@ -786,11 +800,36 @@ function terminals(page: Page, title: string) {
   return page.getByRole("region", { name: `Terminal in ${title}` }).getByRole("list");
 }
 
+/** Where `locator` is on the page, once it's visible. */
+async function boxOf(locator: Locator) {
+  await expect(locator).toBeVisible();
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error("the element has no bounding box");
+  return box;
+}
+
+/** Types `command` into the terminal titled `title` and waits for a row that is exactly `output`. */
+async function runInTerminal(page: Page, title: string, command: string, output: string) {
+  await page.getByRole("region", { name: `Terminal in ${title}` }).click();
+  await page.keyboard.type(command);
+  await page.keyboard.press("Enter");
+  await expect(
+    terminals(page, title)
+      .getByRole("listitem")
+      .filter({
+        hasText: new RegExp(`^\\s*${output.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`),
+      }),
+  ).toHaveCount(1);
+}
+
 test("Ctrl+` opens a terminal at the workshop root that runs commands", async () => {
   const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
+    // The default layout's terminal.
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(1);
     await page.keyboard.press("Control+Backquote");
-    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(2);
+    // The default layout's terminal is hidden behind the new one's tab.
     await expect(terminals(page, "studies")).toBeVisible();
 
     await page.keyboard.type("echo hello | tee greeting.txt");
@@ -810,11 +849,13 @@ test("Ctrl+` opens a terminal at the workshop root that runs commands", async ()
 test("Ctrl+` inside a terminal opens another in its group, and exit closes a terminal's tab", async () => {
   const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
-    await page.keyboard.press("Control+Backquote");
-    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(1);
+    // The default layout's terminal, which Ctrl+` inside it opens the new one next to.
+    await page.getByRole("region", { name: "Terminal in studies" }).click();
     await page.keyboard.press("Control+Backquote");
     await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(2);
-    await expect(page.getByRole("tablist")).toHaveCount(1);
+    await expect(
+      page.getByRole("tablist").filter({ has: page.getByRole("tab", { name: "studies" }) }),
+    ).toHaveCount(1);
 
     // The first terminal is hidden behind the second's tab, so only the second's rows are visible.
     await expect(terminals(page, "studies")).toBeVisible();
@@ -831,14 +872,13 @@ test("opening another workshop closes the terminals", async () => {
   const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   const other = await makeWorkshop(await mkdtemp(path.join(tmpdir(), "hone-e2e-")), "work");
   try {
-    await page.keyboard.press("Control+Backquote");
     await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
 
     await pickFolderInDialog(electronApp, other);
     await page.getByRole("button", { name: "studies", exact: true }).click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work" })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(0);
   } finally {
     await electronApp.close();
   }
@@ -847,13 +887,155 @@ test("opening another workshop closes the terminals", async () => {
 test("a terminal whose shell can't start closes its tab and shows the error", async () => {
   const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
+    // The default layout's terminal, whose shell starts before the folder goes away.
+    await runInTerminal(page, "studies", "echo started", "started");
     // The folder it would start in is gone, so terminal.open fails with NotFound. The file tree can fail the same way,
     // so the error alone doesn't prove the tab opened and closed; without the fix the tab stays open, which this catches.
     await rm(root, { recursive: true });
     await page.keyboard.press("Control+Backquote");
 
-    await expect(page.getByText("Something went wrong")).toBeVisible();
-    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(0);
+    await expect(page.getByText("Something went wrong").first()).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(1);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a fresh workshop shows an empty editor area and a terminal at the bottom", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    // Only the terminal's tab: the editor area above it is empty.
+    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+
+    const area = await boxOf(page.locator(".hone-editor-area"));
+    const terminal = await boxOf(page.getByRole("region", { name: "Terminal in studies" }));
+    // The terminal's content ends at the bottom, and with its tab bar it takes about 30% of the height.
+    expect(terminal.y + terminal.height).toBeCloseTo(area.y + area.height, -1);
+    const terminalTop = (terminal.y - area.y) / area.height;
+    expect(terminalTop).toBeGreaterThan(0.6);
+    expect(terminalTop).toBeLessThan(0.8);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("relaunching restores the workshop's tabs and where they were, with a working terminal", async () => {
+  const { userData, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "algebra.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "geometry.md"), "Circles.\n");
+  });
+  try {
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await tree.getByRole("button", { name: "geometry.md" }).click();
+    const editor = page.getByRole("textbox", { name: "geometry.md" });
+    const terminal = page.getByRole("region", { name: "Terminal in studies" });
+    // Retried, since a drag can end before dockview has shown where it would drop.
+    await expect(async () => {
+      const tab = await boxOf(page.getByRole("tab", { name: "studies" }));
+      const editorBox = await boxOf(editor);
+      await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2);
+      await page.mouse.down();
+      // Dropped on the editor group's right edge, which splits the terminal off to its right.
+      await page.mouse.move(editorBox.x + editorBox.width - 5, editorBox.y + editorBox.height / 2, {
+        steps: 10,
+      });
+      await page.mouse.up();
+      expect((await boxOf(terminal)).x).toBeGreaterThan((await boxOf(editor)).x + 100);
+    }).toPass();
+  } finally {
+    await electronApp.close();
+  }
+
+  const relaunched = await launch(userData);
+  try {
+    const relaunchedPage = await relaunched.firstWindow();
+    await expect(relaunchedPage.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await expect(relaunchedPage.getByRole("tab", { name: "geometry.md" })).toBeVisible();
+    await expect(relaunchedPage.getByRole("textbox", { name: "geometry.md" })).toContainText(
+      "Circles.",
+    );
+
+    const editor = await boxOf(relaunchedPage.getByRole("textbox", { name: "geometry.md" }));
+    const terminal = await boxOf(
+      relaunchedPage.getByRole("region", { name: "Terminal in studies" }),
+    );
+    expect(terminal.x).toBeGreaterThan(editor.x + editor.width / 2);
+    expect(terminal.y).toBeLessThan(editor.y + editor.height / 2);
+
+    await runInTerminal(relaunchedPage, "studies", "echo hello", "hello");
+  } finally {
+    await relaunched.close();
+  }
+});
+
+test("a file deleted between launches isn't restored, and no broken tab appears", async () => {
+  const { root, userData, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "algebra.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "geometry.md"), "Circles.\n");
+  });
+  try {
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await tree.getByRole("button", { name: "geometry.md" }).click();
+    await expect(page.getByRole("tab", { name: "geometry.md" })).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+  await rm(path.join(root, "geometry.md"));
+
+  const relaunched = await launch(userData);
+  try {
+    const relaunchedPage = await relaunched.firstWindow();
+    await expect(relaunchedPage.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await expect(relaunchedPage.getByRole("tab", { name: "geometry.md" })).toHaveCount(0);
+    await expect(relaunchedPage.getByRole("textbox", { name: "algebra.md" })).toContainText(
+      "Groups.",
+    );
+    await expect(relaunchedPage.getByText("Something went wrong")).toBeHidden();
+    await expect(relaunchedPage.getByText("couldn't be opened")).toBeHidden();
+  } finally {
+    await relaunched.close();
+  }
+});
+
+test("switching workshops keeps each one's layout", async () => {
+  const { electronApp, page, tree, root } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "algebra.md"), "Groups.\n");
+  });
+  const work = await makeWorkshop(await mkdtemp(path.join(tmpdir(), "hone-e2e-")), "work");
+  try {
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+
+    await pickFolderInDialog(electronApp, work);
+    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    // The default layout, since this workshop has none saved.
+    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
+
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "work", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(2);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Open terminal here on a folder opens a terminal in that folder", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "math"));
+  });
+  try {
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Open terminal here" }).click();
+    await expect(page.getByRole("tab", { name: "math" })).toBeVisible();
+
+    await runInTerminal(page, "math", "pwd", await realpath(path.join(root, "math")));
   } finally {
     await electronApp.close();
   }

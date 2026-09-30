@@ -1,5 +1,4 @@
 import { filesDeleteMethod, filesRenameMethod, type WorkshopInfo } from "@hone/protocol";
-import type { DockviewApi } from "dockview-react";
 import { useRef } from "react";
 import {
   DropdownMenu,
@@ -20,14 +19,22 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import type { HostClient } from "@/host-client.ts";
+import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
-import { closeEditorTabs, EditorArea, openEditorTab, renameEditorTabs } from "./editor-area.tsx";
+import {
+  closeEditorTabs,
+  EditorArea,
+  openEditorTab,
+  renameEditorTabs,
+  type Editors,
+} from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
 
 interface WorkshopScreenProps {
   readonly client: HostClient;
   readonly workshop: WorkshopInfo;
   readonly openFiles: OpenFiles;
+  readonly layouts: LayoutSaver;
   readonly onOpenWorkshop: () => void;
   readonly onCreateWorkshop: () => void;
 }
@@ -40,10 +47,11 @@ export function WorkshopScreen({
   client,
   workshop,
   openFiles,
+  layouts,
   onOpenWorkshop,
   onCreateWorkshop,
 }: WorkshopScreenProps) {
-  const editors = useRef<DockviewApi>(undefined);
+  const editors = useRef<Editors>(undefined);
 
   async function renameEntry(from: string, to: string): Promise<void> {
     // Saved first, so no save is on its way to the old path while the file moves.
@@ -51,14 +59,14 @@ export function WorkshopScreen({
     await client.call(filesRenameMethod, { from, to });
     // Before the watcher reports the old paths as deleted, which would otherwise close their tabs.
     openFiles.renamed(from, to);
-    if (editors.current !== undefined) renameEditorTabs(editors.current, from, to);
+    if (editors.current !== undefined) renameEditorTabs(editors.current.api, from, to);
   }
 
   async function deleteEntry(path: string): Promise<void> {
     await client.call(filesDeleteMethod, { path });
     // Dropped first, so closing the tabs doesn't try to save them to files that are gone.
     openFiles.deleted(path);
-    if (editors.current !== undefined) closeEditorTabs(editors.current, path);
+    if (editors.current !== undefined) closeEditorTabs(editors.current.api, path);
   }
 
   return (
@@ -87,7 +95,11 @@ export function WorkshopScreen({
             key={workshop.root}
             client={client}
             onOpenFile={(path) => {
-              if (editors.current !== undefined) openEditorTab(editors.current, path);
+              if (editors.current !== undefined) openEditorTab(editors.current.api, path);
+            }}
+            onOpenTerminal={(path) => {
+              const title = path === "" ? workshop.name : path.slice(path.lastIndexOf("/") + 1);
+              editors.current?.openTerminal(path, title);
             }}
             onRename={renameEntry}
             onDelete={deleteEntry}
@@ -100,12 +112,14 @@ export function WorkshopScreen({
           <SidebarTrigger />
         </header>
         <div className="min-h-0 flex-1">
-          {/* Keyed by root, so opening another workshop closes every editor tab. */}
+          {/* Keyed by root, so opening another workshop closes every tab and opens that workshop's layout. */}
           <EditorArea
             key={workshop.root}
             client={client}
+            workshopRoot={workshop.root}
             workshopName={workshop.name}
             openFiles={openFiles}
+            layouts={layouts}
             onReady={(api) => {
               editors.current = api;
             }}
