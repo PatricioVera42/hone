@@ -409,6 +409,8 @@ function targetOf(element: EventTarget): TreeTarget {
 interface FileTreeProps {
   readonly client: HostClient;
   readonly onOpenFile: (path: string) => void;
+  /** Opens a terminal in the folder at `path`. */
+  readonly onOpenTerminal: (path: string) => void;
   /** Renames an entry, rejecting with a {@link HostCallError} when the host refuses. */
   readonly onRename: (from: string, to: string) => Promise<void>;
   /** Deletes an entry, once the user confirmed. */
@@ -418,10 +420,16 @@ interface FileTreeProps {
 /**
  * The open workshop's files and folders. Folders load their children the first time they're expanded, and
  * clicking a file calls `onOpenFile`. Right-clicking a folder, or the empty space for the root, offers to create
- * a note, file or folder inside it; right-clicking a file or folder offers to rename it or
- * delete it, which F2 and the Delete key do too.
+ * a note, file or folder inside it, or to open a terminal there; right-clicking a file or folder offers to rename it
+ * or delete it, which F2 and the Delete key do too.
  */
-export function FileTree({ client, onOpenFile, onRename, onDelete }: FileTreeProps) {
+export function FileTree({
+  client,
+  onOpenFile,
+  onOpenTerminal,
+  onRename,
+  onDelete,
+}: FileTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<ReadonlySet<string>>(new Set());
   const [edit, setEdit] = useState<TreeEdit>();
   const [menuTarget, setMenuTarget] = useState<TreeTarget>(rootTarget);
@@ -471,6 +479,10 @@ export function FileTree({ client, onOpenFile, onRename, onDelete }: FileTreePro
               <ContextMenuItem onClick={() => startCreating("note")}>New note</ContextMenuItem>
               <ContextMenuItem onClick={() => startCreating("file")}>New file</ContextMenuItem>
               <ContextMenuItem onClick={() => startCreating("folder")}>New folder</ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={() => onOpenTerminal(menuTarget.path)}>
+                Open terminal here
+              </ContextMenuItem>
             </>
           )}
           {menuTarget.kind === "folder" && menuTarget !== rootTarget && <ContextMenuSeparator />}

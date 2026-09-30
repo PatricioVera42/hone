@@ -44,6 +44,8 @@ interface TerminalPanelProps {
   readonly cwd: string;
   /** The terminal's accessible name. */
   readonly label: string;
+  /** Whether the terminal's panel is the active one. Checked once the terminal opens: only then does it take focus. */
+  readonly isActive: () => boolean;
   /** Called once the shell has exited, or couldn't start. */
   readonly onExit: () => void;
 }
@@ -52,9 +54,10 @@ interface TerminalPanelProps {
  * An xterm running a shell in the host, in the code editors' font. It opens the host's terminal once mounted and
  * closes it when unmounted, unless the shell has already exited.
  */
-export function TerminalPanel({ client, cwd, label, onExit }: TerminalPanelProps) {
+export function TerminalPanel({ client, cwd, label, isActive, onExit }: TerminalPanelProps) {
   const container = useRef<HTMLDivElement>(null);
   const shellExitedEvent = useEffectEvent(onExit);
+  const isActiveEvent = useEffectEvent(isActive);
 
   useEffect(() => {
     const element = container.current;
@@ -89,7 +92,10 @@ export function TerminalPanel({ client, cwd, label, onExit }: TerminalPanelProps
       opened.open(parent);
       fit.fit();
       // dockview shows a new panel kept in the page in its next animation frame, and a hidden one can't take focus.
-      const focusing = requestAnimationFrame(() => opened.focus());
+      // A terminal restored with the layout behind another panel leaves focus where it is.
+      const focusing = requestAnimationFrame(() => {
+        if (isActiveEvent()) opened.focus();
+      });
       cleanups.push(() => cancelAnimationFrame(focusing));
 
       // Typed before the host's terminal exists, then sent once it does.

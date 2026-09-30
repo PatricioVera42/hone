@@ -36,4 +36,34 @@ describe("AppStateFile", () => {
       lastWorkshop: "/home/user/studies",
     });
   });
+
+  it("has no layout for a workshop whose layout was never saved", async () => {
+    const state = new AppStateFile(await stateFilePath());
+    await state.setLayout("/home/user/studies", { grid: "studies" });
+    await expect(state.getLayout("/home/user/work")).resolves.toBeUndefined();
+  });
+
+  it("returns each workshop's own saved layout, across instances", async () => {
+    const file = await stateFilePath();
+    await new AppStateFile(file).setLayout("/home/user/studies", { grid: "studies" });
+    await new AppStateFile(file).setLayout("/home/user/work", { grid: "work" });
+    const state = new AppStateFile(file);
+    await expect(state.getLayout("/home/user/studies")).resolves.toStrictEqual({ grid: "studies" });
+    await expect(state.getLayout("/home/user/work")).resolves.toStrictEqual({ grid: "work" });
+  });
+
+  it("loses no change when a layout and the last workshop are set at the same time", async () => {
+    // A layout save can still be on its way when the app records the workshop it switched to.
+    const file = await stateFilePath();
+    const state = new AppStateFile(file);
+    await Promise.all([
+      state.setLayout("/home/user/studies", { grid: "studies" }),
+      state.setLastWorkshop("/home/user/work"),
+    ]);
+    const reread = new AppStateFile(file);
+    await expect(reread.getLayout("/home/user/studies")).resolves.toStrictEqual({
+      grid: "studies",
+    });
+    await expect(reread.getLastWorkshop()).resolves.toBe("/home/user/work");
+  });
 });
