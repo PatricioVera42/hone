@@ -1,5 +1,6 @@
 import { appErrorCodes, filesChangedNotification, filesReadMethod } from "@hone/protocol";
 import { useEffect, useEffectEvent, useState } from "react";
+import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { OpenFile, type EditorContent, type OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -73,7 +74,19 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
   }
   const { version } = state;
   function connect(editor: EditorContent): EditorConnection {
-    const file = new OpenFile({ client, path: openedPath, version, editor, onDeleted });
+    const file = new OpenFile({
+      client,
+      path: openedPath,
+      version,
+      editor,
+      onDeleted,
+      onEditsDiscarded: (name) => {
+        toast.add({
+          type: "warning",
+          title: `${name} changed on disk; your latest edits were discarded.`,
+        });
+      },
+    });
     const unsubscribe = client.onNotification(filesChangedNotification, (change) => {
       file.receive(change);
     });
