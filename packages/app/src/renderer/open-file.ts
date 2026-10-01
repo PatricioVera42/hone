@@ -1,11 +1,40 @@
 import { appErrorCodes, filesReadMethod, filesWriteMethod, type FileChange } from "@hone/protocol";
-import { toast } from "@/components/ui/toast.tsx";
-import { decideOpenFileAction, type OpenFileAction } from "@/decide-open-file-action.ts";
 import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
 
 const saveDelayMs = 500;
+
+/** What an open file knows: the version its editor last loaded or saved, and whether it has unsaved edits. */
+interface OpenFileState {
+  readonly version: string;
+  readonly pendingEdits: boolean;
+}
+
+/** Something that can make an open file's editor stale: a `files.changed` for its path, or a save that failed with `VersionConflict`. */
+type OpenFileInput =
+  | { readonly kind: "change"; readonly change: FileChange }
+  | { readonly kind: "saveConflict" };
+
+/**
+ * `reload` keeps the cursor at the same offset. `reloadDiscardingEdits` does too, dropping the pending edits and
+ * telling the user. `close` closes the file's tab.
+ */
+type OpenFileAction = "ignore" | "reload" | "reloadDiscardingEdits" | "close";
+
+/**
+ * Decides how an open file reacts to an input. The disk always wins: Hone never overwrites a change it didn't
+ * make with an older version. Like the tree, it takes each change as the latest word on the path, so a creation
+ * of the open file counts as a change.
+ */
+function decideOpenFileAction(state: OpenFileState, input: OpenFileInput): OpenFileAction {
+  if (input.kind === "saveConflict") return "reloadDiscardingEdits";
+  const { change } = input;
+  if (change.change === "deleted" || change.kind === "folder") return "close";
+  // Our own save's echo, or a write that left the bytes as they were.
+  if (change.version === state.version) return "ignore";
+  return state.pendingEdits ? "reloadDiscardingEdits" : "reload";
+}
 
 /** The editor an open file keeps in sync with the disk. */
 export interface EditorContent {
@@ -16,7 +45,7 @@ export interface EditorContent {
 }
 
 interface OpenFileOptions {
-  readonly client: HostClient;
+  readonly client: Pick<HostClient, "call">;
   /** The file's protocol path when it opened, relative to the workshop root. */
   readonly path: string;
   /** The version the editor's content was read at. */
@@ -24,6 +53,8 @@ interface OpenFileOptions {
   readonly editor: EditorContent;
   /** Called when the file is gone from disk, to close its tab. */
   readonly onDeleted: () => void;
+  /** Called with the file's name when its pending edits were dropped for the version on disk, to tell the user. */
+  readonly onEditsDiscarded: (name: string) => void;
 }
 
 function isHostError(error: unknown, code: number): boolean {
@@ -154,13 +185,7 @@ export class OpenFile {
     this.dropPendingEdits();
     this.version = file.version;
     if (!this.closed) editor.replace(file.content);
-    if (discarded) {
-      const name = path.slice(path.lastIndexOf("/") + 1);
-      toast.add({
-        type: "warning",
-        title: `${name} changed on disk; your latest edits were discarded.`,
-      });
-    }
+    if (discarded) this.options.onEditsDiscarded(path.slice(path.lastIndexOf("/") + 1));
   }
 }
 
