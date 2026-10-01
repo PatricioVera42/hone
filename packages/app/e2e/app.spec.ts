@@ -1094,7 +1094,7 @@ function pageScrolls(page: Page): Promise<boolean> {
   );
 }
 
-test("the workshop screen fits the window, with no tab and with a note open", async () => {
+test("the workshop screen fits the window, with a terminal, with no tab and with a note open", async () => {
   const { electronApp, page, tree } = await openWorkshopWith((workshop) =>
     writeFile(path.join(workshop, "notes.md"), "A short note.\n"),
   );
@@ -1106,6 +1106,7 @@ test("the workshop screen fits the window, with no tab and with a note open", as
     });
     await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBe(1.5);
     await page.getByRole("region", { name: "Terminal in studies" }).click();
+    expect(await pageScrolls(page)).toBe(false);
     await page.keyboard.type("exit");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("tab")).toHaveCount(0);
