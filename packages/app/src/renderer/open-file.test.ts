@@ -180,6 +180,18 @@ describe("OpenFile", () => {
     ]);
   });
 
+  it("reports its edits as pending until their write succeeds", async () => {
+    const { file, calls, type } = openFile();
+    type("unsaved");
+    const flushed = file.flush();
+    await settled();
+    expect(file.hasPendingEdits()).toBe(true);
+
+    calls[0]?.resolve({ version: "v2" });
+    await flushed;
+    expect(file.hasPendingEdits()).toBe(false);
+  });
+
   it("reloads, discarding the edits, when a save fails with VersionConflict", async () => {
     const { file, calls, editor, type, onEditsDiscarded } = openFile();
     type("unsaved");

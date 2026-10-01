@@ -71,6 +71,8 @@ export class OpenFile {
   private path: string;
   private version: string;
   private pendingEdits = false;
+  /** Whether a save's write hasn't answered yet: its edits aren't on disk until it succeeds. */
+  private writing = false;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
@@ -94,9 +96,9 @@ export class OpenFile {
     return this.enqueue(() => this.save());
   }
 
-  /** Whether it has edits not saved yet, such as after a save that failed. */
+  /** Whether it has edits not saved yet, such as after a save that failed or while a save is writing. */
   hasPendingEdits(): boolean {
-    return this.pendingEdits;
+    return this.pendingEdits || this.writing;
   }
 
   /** Handles a `files.changed`, ignoring changes to other paths. */
@@ -124,7 +126,7 @@ export class OpenFile {
    */
   async close(): Promise<boolean> {
     await this.flush();
-    if (this.pendingEdits) return false;
+    if (this.hasPendingEdits()) return false;
     this.closed = true;
     return true;
   }
@@ -156,6 +158,7 @@ export class OpenFile {
     const { path } = this;
     const content = editor.read();
     this.pendingEdits = false;
+    this.writing = true;
     try {
       const saved = await client.call(filesWriteMethod, {
         path,
@@ -170,6 +173,8 @@ export class OpenFile {
         throw error;
       }
       await this.apply(decideOpenFileAction(this.state(), { kind: "saveConflict" }));
+    } finally {
+      this.writing = false;
     }
   }
 
