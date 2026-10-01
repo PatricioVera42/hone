@@ -111,7 +111,9 @@ export function WorkshopScreen({
         <header className="flex h-10 shrink-0 items-center px-2">
           <SidebarTrigger />
         </header>
-        <div className="min-h-0 flex-1">
+        {/* Clips dockview, which rounds this box's size to whole pixels: with a fraction of a pixel, as under display
+            scaling, it rounds past the window's edge and the page grows scrollbars that come and go. */}
+        <div className="min-h-0 flex-1 overflow-hidden">
           {/* Keyed by root, so opening another workshop closes every tab and opens that workshop's layout. */}
           <EditorArea
             key={workshop.root}

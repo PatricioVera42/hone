@@ -1072,3 +1072,49 @@ test("relaunching restores a terminal in the folder it was opened in", async () 
     await relaunched.close();
   }
 });
+
+/**
+ * Whether the page itself scrolls, beyond what scrolls inside it, in any of 60 frames (a second): the window then
+ * shows its own scrollbars. Watched over time, since an editor area rounded past the window's edge makes those
+ * scrollbars come and go.
+ */
+function pageScrolls(page: Page): Promise<boolean> {
+  return page.evaluate(
+    () =>
+      new Promise<boolean>((resolve) => {
+        let frames = 0;
+        function check(): void {
+          const { scrollHeight, scrollWidth, clientHeight, clientWidth } = document.documentElement;
+          if (scrollHeight > clientHeight || scrollWidth > clientWidth) resolve(true);
+          else if (++frames === 60) resolve(false);
+          else requestAnimationFrame(check);
+        }
+        requestAnimationFrame(check);
+      }),
+  );
+}
+
+test("the workshop screen fits the window, with no tab and with a note open", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    writeFile(path.join(workshop, "notes.md"), "A short note.\n"),
+  );
+  try {
+    // Zoomed so a CSS pixel isn't a whole screen pixel, as with Windows display scaling at 150%: the editor area's
+    // size then has a fraction, which dockview rounds up past the window's edge.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1.5);
+    });
+    await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBe(1.5);
+    await page.getByRole("region", { name: "Terminal in studies" }).click();
+    await page.keyboard.type("exit");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("tab")).toHaveCount(0);
+    expect(await pageScrolls(page)).toBe(false);
+
+    await tree.getByRole("button", { name: "notes.md" }).click();
+    await expect(page.getByRole("textbox", { name: "notes.md" })).toContainText("A short note.");
+    expect(await pageScrolls(page)).toBe(false);
+  } finally {
+    await electronApp.close();
+  }
+});
