@@ -117,8 +117,20 @@ export class OpenFile {
     if (isAtOrInside(this.path, path)) this.dropPendingEdits();
   }
 
-  /** Saves pending edits and stops touching the editor, for when its tab closes. */
-  close(): Promise<void> {
+  /**
+   * Saves pending edits, for when its tab closes, and then stops touching the editor. Resolves with `false` instead
+   * when edits are still pending, such as after a failed save: it stays open, so its tab should too, and the edits
+   * are never lost without the user seeing them.
+   */
+  async close(): Promise<boolean> {
+    await this.flush();
+    if (this.pendingEdits) return false;
+    this.closed = true;
+    return true;
+  }
+
+  /** Stops touching the editor, for when its tab is gone, and saves any edits still pending. */
+  disconnect(): Promise<void> {
     const flushed = this.flush();
     this.closed = true;
     return flushed;

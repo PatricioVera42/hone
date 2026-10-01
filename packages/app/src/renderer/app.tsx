@@ -24,6 +24,7 @@ export function App() {
     () =>
       window.hone.onFlushSaves(async () => {
         await Promise.all([openFiles.flush(), layouts.flush()]);
+        return openFiles.hasPendingEdits();
       }),
     [openFiles, layouts],
   );

@@ -31,6 +31,11 @@ interface EditorPanelProps {
   readonly path: string;
   /** Closes the panel's tab, for when the file is deleted, or was already gone when the tab opened. */
   readonly onDeleted: () => void;
+  /**
+   * Called once the editor is up with what closing its tab must run first, which resolves with whether the tab may
+   * close. Returns a function that unregisters it.
+   */
+  readonly registerTabClose: (close: () => Promise<boolean>) => () => void;
 }
 
 /**
@@ -38,7 +43,13 @@ interface EditorPanelProps {
  * it can't be shown. A file that's gone, such as one deleted since its tab was saved in the layout, closes the tab
  * without a message.
  */
-export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelProps) {
+export function EditorPanel({
+  client,
+  openFiles,
+  path,
+  onDeleted,
+  registerTabClose,
+}: EditorPanelProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // Read once, from where the file was when its tab opened: a rename moves the open file along instead.
   const [openedPath] = useState(path);
@@ -91,13 +102,16 @@ export function EditorPanel({ client, openFiles, path, onDeleted }: EditorPanelP
       file.receive(change);
     });
     const untrack = openFiles.add(file);
+    // Closing the tab saves its pending edits first, and keeps it open if that fails.
+    const unregister = registerTabClose(() => file.close());
     return {
       edited: () => file.edited(),
       disconnect: () => {
         unsubscribe();
-        // Closing a tab saves its pending edits. Tracked until then, so a workshop switch or the window closing
-        // right after waits for that save.
-        void file.close().then(untrack);
+        unregister();
+        // Usually there's nothing left to save by now. Tracked until the save is done, so a workshop switch or the
+        // window closing right after waits for it.
+        void file.disconnect().then(untrack);
       },
     };
   }
