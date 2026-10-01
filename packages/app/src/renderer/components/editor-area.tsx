@@ -36,23 +36,23 @@ function isTerminal(panel: IDockviewPanel): boolean {
 }
 
 /** What closing each open editor's tab must run first, by panel id. Each resolves with whether the tab may close. */
-type TabCloses = Map<string, () => Promise<boolean>>;
+type TabCloseGuards = Map<string, () => Promise<boolean>>;
 
 /** Closes a tab, unless it's an editor whose pending edits couldn't be saved: that one stays open with them. */
-async function closeTab(tabCloses: TabCloses, panel: DockviewPanelApi): Promise<void> {
-  const close = tabCloses.get(panel.id);
-  if (close === undefined) {
+async function closeTab(tabCloseGuards: TabCloseGuards, panel: DockviewPanelApi): Promise<void> {
+  const guard = tabCloseGuards.get(panel.id);
+  if (guard === undefined) {
     panel.close();
     return;
   }
   // Unless the tab closed in the meantime, such as when its file was deleted during the save.
-  if ((await close()) && tabCloses.get(panel.id) === close) panel.close();
+  if ((await guard()) && tabCloseGuards.get(panel.id) === guard) panel.close();
 }
 
 interface EditorAreaContextValue {
   readonly client: HostClient;
   readonly openFiles: OpenFiles;
-  readonly tabCloses: TabCloses;
+  readonly tabCloseGuards: TabCloseGuards;
 }
 
 // Panels are built by dockview from a component name, so what they share reaches them through context, not params.
@@ -68,9 +68,9 @@ function EditorPanelFromLayout({ api, params }: IDockviewPanelProps<EditorPanelP
       openFiles={context.openFiles}
       path={params.path}
       onDeleted={() => api.close()}
-      registerTabClose={(close) => {
-        context.tabCloses.set(api.id, close);
-        return () => context.tabCloses.delete(api.id);
+      registerTabCloseGuard={(guard) => {
+        context.tabCloseGuards.set(api.id, guard);
+        return () => context.tabCloseGuards.delete(api.id);
       }}
     />
   );
@@ -100,7 +100,7 @@ function Tab(props: IDockviewPanelHeaderProps) {
   return (
     <DockviewDefaultTab
       {...props}
-      closeActionOverride={() => void closeTab(context.tabCloses, props.api)}
+      closeActionOverride={() => void closeTab(context.tabCloseGuards, props.api)}
     />
   );
 }
@@ -233,8 +233,11 @@ export function EditorArea({
 }: EditorAreaProps) {
   const [layoutLoad, setLayoutLoad] = useState<LayoutLoad>({ status: "loading" });
   const [editors, setEditors] = useState<DockviewApi>();
-  const [tabCloses] = useState<TabCloses>(() => new Map());
-  const context = useMemo(() => ({ client, openFiles, tabCloses }), [client, openFiles, tabCloses]);
+  const [tabCloseGuards] = useState<TabCloseGuards>(() => new Map());
+  const context = useMemo(
+    () => ({ client, openFiles, tabCloseGuards }),
+    [client, openFiles, tabCloseGuards],
+  );
   const lastTerminal = useRef<IDockviewPanel>(undefined);
 
   useEffect(() => {
@@ -297,11 +300,11 @@ export function EditorArea({
       }
       event.preventDefault();
       const panel = editors?.activePanel;
-      if (panel !== undefined) void closeTab(tabCloses, panel.api);
+      if (panel !== undefined) void closeTab(tabCloseGuards, panel.api);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editors, tabCloses]);
+  }, [editors, tabCloseGuards]);
 
   function handleReady(event: DockviewReadyEvent): void {
     const { api } = event;

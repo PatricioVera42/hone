@@ -35,7 +35,7 @@ interface EditorPanelProps {
    * Called once the editor is up with what closing its tab must run first, which resolves with whether the tab may
    * close. Returns a function that unregisters it.
    */
-  readonly registerTabClose: (close: () => Promise<boolean>) => () => void;
+  readonly registerTabCloseGuard: (guard: () => Promise<boolean>) => () => void;
 }
 
 /**
@@ -48,7 +48,7 @@ export function EditorPanel({
   openFiles,
   path,
   onDeleted,
-  registerTabClose,
+  registerTabCloseGuard,
 }: EditorPanelProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // Read once, from where the file was when its tab opened: a rename moves the open file along instead.
@@ -103,7 +103,7 @@ export function EditorPanel({
     });
     const untrack = openFiles.add(file);
     // Closing the tab saves its pending edits first, and keeps it open if that fails.
-    const unregister = registerTabClose(() => file.close());
+    const unregister = registerTabCloseGuard(() => file.closeIfSaved());
     return {
       edited: () => file.edited(),
       disconnect: () => {

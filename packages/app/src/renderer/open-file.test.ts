@@ -222,7 +222,7 @@ describe("OpenFile", () => {
   it("closes once its pending edits are saved", async () => {
     const { file, calls, type } = openFile();
     type("unsaved");
-    const closed = file.close();
+    const closed = file.closeIfSaved();
     await settled();
     calls[0]?.resolve({ version: "v2" });
 
@@ -232,7 +232,7 @@ describe("OpenFile", () => {
   it("stays open with its edits when the save fails as its tab closes, and still follows the disk", async () => {
     const { file, calls, editor, type } = openFile();
     type("unsaved");
-    const closed = file.close();
+    const closed = file.closeIfSaved();
     await settled();
     calls[0]?.reject(new HostCallError(appErrorCodes.NoWorkshopOpen, "No workshop is open."));
 
@@ -247,7 +247,7 @@ describe("OpenFile", () => {
 
   it("doesn't ask to close once closed", async () => {
     const { file, onDeleted } = openFile();
-    await expect(file.close()).resolves.toBe(true);
+    await expect(file.closeIfSaved()).resolves.toBe(true);
     file.receive({ path: "notes/a.md", change: "deleted", kind: "file" });
     await settled();
     expect(onDeleted).not.toHaveBeenCalled();
