@@ -117,12 +117,15 @@ function flushSaves(window: BrowserWindow): Promise<boolean> {
 async function confirmDiscardingEdits(window: BrowserWindow): Promise<boolean> {
   const { response } = await dialog.showMessageBox(window, {
     type: "warning",
+    title: "Hone",
     message: "Some edits aren't saved yet.",
     detail:
       "Closing now discards them. Cancel keeps the window open, with the edits in their tabs.",
     buttons: ["Discard and close", "Cancel"],
     defaultId: 1,
     cancelId: 1,
+    // Otherwise Windows shows "Discard and close" as a link instead of a button.
+    noLink: true,
   });
   return response === 0;
 }
