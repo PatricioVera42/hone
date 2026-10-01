@@ -113,11 +113,11 @@ function flushSaves(window: BrowserWindow): Promise<boolean> {
   });
 }
 
-/** Asks whether to close the window, discarding edits that couldn't be saved. */
+/** Asks whether to close the window, discarding edits that aren't saved yet. */
 async function confirmDiscardingEdits(window: BrowserWindow): Promise<boolean> {
   const { response } = await dialog.showMessageBox(window, {
     type: "warning",
-    message: "Some edits couldn't be saved.",
+    message: "Some edits aren't saved yet.",
     detail:
       "Closing now discards them. Cancel keeps the window open, with the edits in their tabs.",
     buttons: ["Discard and close", "Cancel"],
@@ -129,7 +129,7 @@ async function confirmDiscardingEdits(window: BrowserWindow): Promise<boolean> {
 
 /**
  * Asks the renderer to save pending edits when the window is about to close, and closes it once they're saved, or
- * after 2 seconds. When some couldn't be saved, it asks whether to discard them; cancelling keeps the window open,
+ * after 2 seconds. When some aren't saved yet, it asks whether to discard them; cancelling keeps the window open,
  * and a later close tries saving again.
  */
 function flushSavesBeforeClosing(window: BrowserWindow): void {

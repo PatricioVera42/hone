@@ -705,7 +705,7 @@ async function closeWindow(electronApp: ElectronApplication): Promise<void> {
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
 }
 
-test("closing the window with edits that couldn't be saved asks first: Cancel keeps it open, Discard closes it", async () => {
+test("closing the window with edits that aren't saved yet asks first: Cancel keeps it open, Discard closes it", async () => {
   const { root, file, electronApp, page, editor } = await openFileInEditor(
     "algebra.md",
     "Groups.\n",
@@ -720,7 +720,7 @@ test("closing the window with edits that couldn't be saved asks first: Cancel ke
     await closeWindow(electronApp);
     await expect
       .poll(() => messageBoxesShown(electronApp))
-      .toStrictEqual(["Some edits couldn't be saved."]);
+      .toStrictEqual(["Some edits aren't saved yet."]);
     await expect(editor).toContainText("Rings.");
     expect(page.isClosed()).toBe(false);
 
