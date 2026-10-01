@@ -180,6 +180,18 @@ describe("OpenFile", () => {
     ]);
   });
 
+  it("reports its edits as pending until their write succeeds", async () => {
+    const { file, calls, type } = openFile();
+    type("unsaved");
+    const flushed = file.flush();
+    await settled();
+    expect(file.hasPendingEdits()).toBe(true);
+
+    calls[0]?.resolve({ version: "v2" });
+    await flushed;
+    expect(file.hasPendingEdits()).toBe(false);
+  });
+
   it("reloads, discarding the edits, when a save fails with VersionConflict", async () => {
     const { file, calls, editor, type, onEditsDiscarded } = openFile();
     type("unsaved");
@@ -196,6 +208,19 @@ describe("OpenFile", () => {
     expect(file.hasPendingEdits()).toBe(false);
   });
 
+  it("stays open with its edits when the re-read after a VersionConflict fails", async () => {
+    const { file, calls, type } = openFile();
+    type("unsaved");
+    const closed = file.closeIfSaved();
+    await settled();
+    calls[0]?.reject(new HostCallError(appErrorCodes.VersionConflict, "The file changed."));
+    await settled();
+    calls[1]?.reject(new HostCallError(appErrorCodes.NoWorkshopOpen, "No workshop is open."));
+
+    await expect(closed).resolves.toBe(false);
+    expect(file.hasPendingEdits()).toBe(true);
+  });
+
   it.each<[string, FileChange]>([
     ["is deleted", { path: "notes/a.md", change: "deleted", kind: "file" }],
     ["turns into a folder", { path: "notes/a.md", change: "created", kind: "folder" }],
@@ -207,9 +232,35 @@ describe("OpenFile", () => {
     expect(calls).toStrictEqual([]);
   });
 
+  it("closes once its pending edits are saved", async () => {
+    const { file, calls, type } = openFile();
+    type("unsaved");
+    const closed = file.closeIfSaved();
+    await settled();
+    calls[0]?.resolve({ version: "v2" });
+
+    await expect(closed).resolves.toBe(true);
+  });
+
+  it("stays open with its edits when the save fails as its tab closes, and still follows the disk", async () => {
+    const { file, calls, editor, type } = openFile();
+    type("unsaved");
+    const closed = file.closeIfSaved();
+    await settled();
+    calls[0]?.reject(new HostCallError(appErrorCodes.NoWorkshopOpen, "No workshop is open."));
+
+    await expect(closed).resolves.toBe(false);
+    expect(file.hasPendingEdits()).toBe(true);
+    file.receive(changed("v2"));
+    await settled();
+    calls[1]?.resolve({ content: "from disk", version: "v2" });
+    await settled();
+    expect(editor.content).toBe("from disk");
+  });
+
   it("doesn't ask to close once closed", async () => {
     const { file, onDeleted } = openFile();
-    await file.close();
+    await expect(file.closeIfSaved()).resolves.toBe(true);
     file.receive({ path: "notes/a.md", change: "deleted", kind: "file" });
     await settled();
     expect(onDeleted).not.toHaveBeenCalled();

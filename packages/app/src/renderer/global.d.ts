@@ -12,9 +12,10 @@ interface Window {
     loadLayout(root: string): Promise<unknown>;
     saveLayout(root: string, layout: unknown): Promise<void>;
     /**
-     * Registers what main runs before the window closes: it closes once the returned promise settles, or after
-     * 2 seconds. Returns a function that unregisters it.
+     * Registers what main runs before the window closes, which resolves with whether edits are still pending. Main
+     * closes the window once it settles without pending edits, or after 2 seconds; with pending edits, it asks
+     * whether to discard them. Returns a function that unregisters it.
      */
-    onFlushSaves(flush: () => Promise<void>): () => void;
+    onFlushSaves(flush: () => Promise<boolean>): () => void;
   };
 }

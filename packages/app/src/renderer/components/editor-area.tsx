@@ -1,9 +1,12 @@
 import {
+  DockviewDefaultTab,
   DockviewReact,
   themeLight,
   type DockviewApi,
+  type DockviewPanelApi,
   type DockviewReadyEvent,
   type IDockviewPanel,
+  type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
   type SerializedDockview,
 } from "dockview-react";
@@ -32,9 +35,24 @@ function isTerminal(panel: IDockviewPanel): boolean {
   return terminalPanelParamsSchema.safeParse(panel.params).success;
 }
 
+/** What closing each open editor's tab must run first, by panel id. Each resolves with whether the tab may close. */
+type TabCloseGuards = Map<string, () => Promise<boolean>>;
+
+/** Closes a tab, unless it's an editor whose pending edits couldn't be saved: that one stays open with them. */
+async function closeTab(tabCloseGuards: TabCloseGuards, panel: DockviewPanelApi): Promise<void> {
+  const guard = tabCloseGuards.get(panel.id);
+  if (guard === undefined) {
+    panel.close();
+    return;
+  }
+  // Unless the tab closed in the meantime, such as when its file was deleted during the save.
+  if ((await guard()) && tabCloseGuards.get(panel.id) === guard) panel.close();
+}
+
 interface EditorAreaContextValue {
   readonly client: HostClient;
   readonly openFiles: OpenFiles;
+  readonly tabCloseGuards: TabCloseGuards;
 }
 
 // Panels are built by dockview from a component name, so what they share reaches them through context, not params.
@@ -50,6 +68,10 @@ function EditorPanelFromLayout({ api, params }: IDockviewPanelProps<EditorPanelP
       openFiles={context.openFiles}
       path={params.path}
       onDeleted={() => api.close()}
+      registerTabCloseGuard={(guard) => {
+        context.tabCloseGuards.set(api.id, guard);
+        return () => context.tabCloseGuards.delete(api.id);
+      }}
     />
   );
 }
@@ -70,6 +92,18 @@ function TerminalPanelFromLayout({ api, params }: IDockviewPanelProps<TerminalPa
 }
 
 const components = { editor: EditorPanelFromLayout, terminal: TerminalPanelFromLayout };
+
+/** Dockview's tab, whose close button and middle click go through {@link closeTab}. */
+function Tab(props: IDockviewPanelHeaderProps) {
+  const context = useContext(EditorAreaContext);
+  if (context === undefined) throw new Error("A tab was rendered outside the editor area");
+  return (
+    <DockviewDefaultTab
+      {...props}
+      closeActionOverride={() => void closeTab(context.tabCloseGuards, props.api)}
+    />
+  );
+}
 
 function fileName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
@@ -199,7 +233,11 @@ export function EditorArea({
 }: EditorAreaProps) {
   const [layoutLoad, setLayoutLoad] = useState<LayoutLoad>({ status: "loading" });
   const [editors, setEditors] = useState<DockviewApi>();
-  const context = useMemo(() => ({ client, openFiles }), [client, openFiles]);
+  const [tabCloseGuards] = useState<TabCloseGuards>(() => new Map());
+  const context = useMemo(
+    () => ({ client, openFiles, tabCloseGuards }),
+    [client, openFiles, tabCloseGuards],
+  );
   const lastTerminal = useRef<IDockviewPanel>(undefined);
 
   useEffect(() => {
@@ -261,11 +299,12 @@ export function EditorArea({
         return;
       }
       event.preventDefault();
-      editors?.activePanel?.api.close();
+      const panel = editors?.activePanel;
+      if (panel !== undefined) void closeTab(tabCloseGuards, panel.api);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editors]);
+  }, [editors, tabCloseGuards]);
 
   function handleReady(event: DockviewReadyEvent): void {
     const { api } = event;
@@ -288,7 +327,12 @@ export function EditorArea({
     <EditorAreaContext value={context}>
       {/* Scopes the theme overrides in index.css, which map dockview's variables onto shadcn's. */}
       <div className="hone-editor-area h-full">
-        <DockviewReact components={components} theme={themeLight} onReady={handleReady} />
+        <DockviewReact
+          components={components}
+          defaultTabComponent={Tab}
+          theme={themeLight}
+          onReady={handleReady}
+        />
       </div>
     </EditorAreaContext>
   );

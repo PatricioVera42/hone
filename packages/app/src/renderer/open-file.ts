@@ -71,6 +71,8 @@ export class OpenFile {
   private path: string;
   private version: string;
   private pendingEdits = false;
+  /** Whether a save's write hasn't answered yet: its edits aren't on disk until it succeeds. */
+  private writing = false;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
@@ -94,9 +96,9 @@ export class OpenFile {
     return this.enqueue(() => this.save());
   }
 
-  /** Whether it has edits not saved yet, such as after a save that failed. */
+  /** Whether it has edits not saved yet, such as after a save that failed or while a save is writing. */
   hasPendingEdits(): boolean {
-    return this.pendingEdits;
+    return this.pendingEdits || this.writing;
   }
 
   /** Handles a `files.changed`, ignoring changes to other paths. */
@@ -117,8 +119,20 @@ export class OpenFile {
     if (isAtOrInside(this.path, path)) this.dropPendingEdits();
   }
 
-  /** Saves pending edits and stops touching the editor, for when its tab closes. */
-  close(): Promise<void> {
+  /**
+   * Saves pending edits, for when its tab closes, and then stops touching the editor. Resolves with whether it closed:
+   * it stays open when edits are still pending, such as after a failed save, so its tab should too, and the edits are
+   * never lost without the user seeing them.
+   */
+  async closeIfSaved(): Promise<boolean> {
+    await this.flush();
+    if (this.hasPendingEdits()) return false;
+    this.closed = true;
+    return true;
+  }
+
+  /** Stops touching the editor, for when its tab is gone, and saves any edits still pending. */
+  disconnect(): Promise<void> {
     const flushed = this.flush();
     this.closed = true;
     return flushed;
@@ -144,6 +158,7 @@ export class OpenFile {
     const { path } = this;
     const content = editor.read();
     this.pendingEdits = false;
+    this.writing = true;
     try {
       const saved = await client.call(filesWriteMethod, {
         path,
@@ -152,12 +167,12 @@ export class OpenFile {
       });
       this.version = saved.version;
     } catch (error) {
-      if (!isHostError(error, appErrorCodes.VersionConflict)) {
-        // Kept, so the next edit or flush tries again.
-        this.pendingEdits = true;
-        throw error;
-      }
+      // Kept until they're saved or replaced by the disk's version, so the next edit or flush tries again.
+      this.pendingEdits = true;
+      if (!isHostError(error, appErrorCodes.VersionConflict)) throw error;
       await this.apply(decideOpenFileAction(this.state(), { kind: "saveConflict" }));
+    } finally {
+      this.writing = false;
     }
   }
 
@@ -169,7 +184,6 @@ export class OpenFile {
       return;
     }
     let discarded = action === "reloadDiscardingEdits";
-    if (discarded) this.dropPendingEdits();
     const { client, editor } = this.options;
     const { path } = this;
     let file;

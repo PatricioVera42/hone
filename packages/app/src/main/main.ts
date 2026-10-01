@@ -102,23 +102,56 @@ async function startHost(): Promise<RunningHost> {
 // Long enough for a save to reach the host, short enough that a hung renderer doesn't keep the window open.
 const flushTimeoutMs = 2000;
 
-/** Asks the renderer to save pending edits when the window is about to close, and closes it once it answers or after 2 seconds. */
+/** Asks the renderer to save pending edits. Resolves with whether some are still pending, or `false` after 2 seconds. */
+function flushSaves(window: BrowserWindow): Promise<boolean> {
+  return new Promise((resolve) => {
+    ipcMain.once("window:saves-flushed", (_event, pendingEdits: unknown) =>
+      resolve(pendingEdits === true),
+    );
+    setTimeout(() => resolve(false), flushTimeoutMs);
+    window.webContents.send("window:flush-saves");
+  });
+}
+
+/** Asks whether to close the window, discarding edits that aren't saved yet. */
+async function confirmDiscardingEdits(window: BrowserWindow): Promise<boolean> {
+  const { response } = await dialog.showMessageBox(window, {
+    type: "warning",
+    title: "Hone",
+    message: "Some edits aren't saved yet.",
+    detail:
+      "Closing now discards them. Cancel keeps the window open, with the edits in their tabs.",
+    buttons: ["Discard and close", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    // Otherwise Windows shows "Discard and close" as a link instead of a button.
+    noLink: true,
+  });
+  return response === 0;
+}
+
+/**
+ * Asks the renderer to save pending edits when the window is about to close, and closes it once they're saved, or
+ * after 2 seconds. When some aren't saved yet, it asks whether to discard them; cancelling keeps the window open,
+ * and a later close tries saving again.
+ */
 function flushSavesBeforeClosing(window: BrowserWindow): void {
   let flushing = false;
-  let flushed = false;
+  let closing = false;
   window.on("close", (event) => {
-    if (flushed) return;
+    if (closing) return;
     event.preventDefault();
     if (flushing) return;
     flushing = true;
-    void new Promise<void>((resolve) => {
-      ipcMain.once("window:saves-flushed", () => resolve());
-      setTimeout(resolve, flushTimeoutMs);
-      window.webContents.send("window:flush-saves");
-    }).then(() => {
-      flushed = true;
+    void (async () => {
+      const pendingEdits = await flushSaves(window);
+      if (pendingEdits && !window.isDestroyed() && !(await confirmDiscardingEdits(window))) {
+        flushing = false;
+        return;
+      }
+      closing = true;
       if (!window.isDestroyed()) window.close();
-    });
+    })();
   });
 }
 

@@ -30,10 +30,13 @@ contextBridge.exposeInMainWorld("hone", {
   saveLayout: async (root: string, layout: unknown): Promise<void> => {
     await ipcRenderer.invoke("state:save-layout", root, layout);
   },
-  onFlushSaves: (flush: () => Promise<void>): (() => void) => {
+  onFlushSaves: (flush: () => Promise<boolean>): (() => void) => {
     function onRequest(): void {
-      // Answers even when a save fails, so main doesn't wait out its timeout; the failure is already reported.
-      void flush().finally(() => ipcRenderer.send("window:saves-flushed"));
+      // Answers even when the flush throws, so main doesn't wait out its timeout. Edits may be pending then, so main
+      // asks before closing.
+      void flush()
+        .catch(() => true)
+        .then((pendingEdits) => ipcRenderer.send("window:saves-flushed", pendingEdits));
     }
     ipcRenderer.on("window:flush-saves", onRequest);
     return () => ipcRenderer.off("window:flush-saves", onRequest);

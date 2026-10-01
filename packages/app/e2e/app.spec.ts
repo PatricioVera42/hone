@@ -8,6 +8,7 @@ import {
   type Page,
 } from "@playwright/test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -18,6 +19,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import type { BaseWindow, MessageBoxOptions } from "electron";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -643,6 +645,94 @@ test("closing the window right after typing saves the edits first", async () => 
   await electronApp.close();
 
   await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
+});
+
+test("closing a tab whose save fails keeps it open with the edits, and closing it once saving works saves them", async () => {
+  const { root, file, electronApp, page, editor } = await openFileInEditor(
+    "algebra.md",
+    "Groups.\n",
+  );
+  try {
+    // The save writes a temporary sibling first, which a read-only folder refuses.
+    await chmod(root, 0o555);
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await page.keyboard.press("Control+w");
+
+    await expect(page.getByText("Something went wrong")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+    await expect(editor).toContainText("Rings.");
+
+    await chmod(root, 0o755);
+    await editor.click();
+    await page.keyboard.press("Control+w");
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
+    await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
+  } finally {
+    await chmod(root, 0o755);
+    await electronApp.close();
+  }
+});
+
+declare global {
+  // The messages of the message boxes answerMessageBoxes answered, kept in main.
+  var honeMessageBoxes: string[] | undefined;
+}
+
+/**
+ * Replaces the native message box, which Playwright can't drive, so it answers with the button labelled `answer`
+ * and records its message for {@link messageBoxesShown}.
+ */
+async function answerMessageBoxes(electronApp: ElectronApplication, answer: string): Promise<void> {
+  await electronApp.evaluate(({ dialog }, button) => {
+    globalThis.honeMessageBoxes ??= [];
+    dialog.showMessageBox = (...args: [BaseWindow, MessageBoxOptions] | [MessageBoxOptions]) => {
+      const options = args.length === 2 ? args[1] : args[0];
+      globalThis.honeMessageBoxes?.push(options.message);
+      const response = options.buttons?.indexOf(button) ?? -1;
+      return Promise.resolve({ response, checkboxChecked: false });
+    };
+  }, answer);
+}
+
+function messageBoxesShown(electronApp: ElectronApplication): Promise<string[] | undefined> {
+  return electronApp.evaluate(() => globalThis.honeMessageBoxes);
+}
+
+/** Closes the window the way its close button would. */
+async function closeWindow(electronApp: ElectronApplication): Promise<void> {
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
+}
+
+test("closing the window with edits that aren't saved yet asks first: Cancel keeps it open, Discard closes it", async () => {
+  const { root, file, electronApp, page, editor } = await openFileInEditor(
+    "algebra.md",
+    "Groups.\n",
+  );
+  try {
+    await chmod(root, 0o555);
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+
+    await answerMessageBoxes(electronApp, "Cancel");
+    await closeWindow(electronApp);
+    await expect
+      .poll(() => messageBoxesShown(electronApp))
+      .toStrictEqual(["Some edits aren't saved yet."]);
+    await expect(editor).toContainText("Rings.");
+    expect(page.isClosed()).toBe(false);
+
+    await answerMessageBoxes(electronApp, "Discard and close");
+    const closed = electronApp.waitForEvent("close");
+    await closeWindow(electronApp);
+    await closed;
+    await expect(readFile(file, "utf8")).resolves.toBe("Groups.\n");
+  } finally {
+    await chmod(root, 0o755);
+    await electronApp.close();
+  }
 });
 
 /** Launches the app on a new workshop that `setUp` fills first, and opens it. */
