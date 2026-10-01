@@ -167,11 +167,9 @@ export class OpenFile {
       });
       this.version = saved.version;
     } catch (error) {
-      if (!isHostError(error, appErrorCodes.VersionConflict)) {
-        // Kept, so the next edit or flush tries again.
-        this.pendingEdits = true;
-        throw error;
-      }
+      // Kept until they're saved or replaced by the disk's version, so the next edit or flush tries again.
+      this.pendingEdits = true;
+      if (!isHostError(error, appErrorCodes.VersionConflict)) throw error;
       await this.apply(decideOpenFileAction(this.state(), { kind: "saveConflict" }));
     } finally {
       this.writing = false;
@@ -186,7 +184,6 @@ export class OpenFile {
       return;
     }
     let discarded = action === "reloadDiscardingEdits";
-    if (discarded) this.dropPendingEdits();
     const { client, editor } = this.options;
     const { path } = this;
     let file;

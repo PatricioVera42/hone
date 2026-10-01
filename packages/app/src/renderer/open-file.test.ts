@@ -208,6 +208,19 @@ describe("OpenFile", () => {
     expect(file.hasPendingEdits()).toBe(false);
   });
 
+  it("stays open with its edits when the re-read after a VersionConflict fails", async () => {
+    const { file, calls, type } = openFile();
+    type("unsaved");
+    const closed = file.closeIfSaved();
+    await settled();
+    calls[0]?.reject(new HostCallError(appErrorCodes.VersionConflict, "The file changed."));
+    await settled();
+    calls[1]?.reject(new HostCallError(appErrorCodes.NoWorkshopOpen, "No workshop is open."));
+
+    await expect(closed).resolves.toBe(false);
+    expect(file.hasPendingEdits()).toBe(true);
+  });
+
   it.each<[string, FileChange]>([
     ["is deleted", { path: "notes/a.md", change: "deleted", kind: "file" }],
     ["turns into a folder", { path: "notes/a.md", change: "created", kind: "folder" }],
