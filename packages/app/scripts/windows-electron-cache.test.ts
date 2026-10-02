@@ -1,9 +1,37 @@
+import type * as fs from "node:fs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fillWindowsElectronCache } from "./windows-electron-cache.ts";
+
+const interruption = vi.hoisted(() => ({ armed: false }));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>();
+  return {
+    ...actual,
+    // Like a Ctrl+C partway through the copy: electron.exe is copied, the rest isn't.
+    cpSync: (
+      source: string,
+      destination: string,
+      options?: Parameters<typeof actual.cpSync>[2],
+    ) => {
+      if (!interruption.armed) {
+        actual.cpSync(source, destination, options);
+        return;
+      }
+      interruption.armed = false;
+      actual.mkdirSync(destination, { recursive: true });
+      actual.copyFileSync(
+        path.join(source, "electron.exe"),
+        path.join(destination, "electron.exe"),
+      );
+      throw new Error("interrupted");
+    },
+  };
+});
 
 async function tempDir(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "hone-windows-electron-"));
@@ -61,5 +89,35 @@ describe("fillWindowsElectronCache", () => {
 
     expect(calls).toStrictEqual([]);
     await expect(readFile(path.join(electronDir, "path.txt"), "utf8")).resolves.toBe("electron");
+  });
+
+  it("doesn't count an interrupted copy as a cache, and copies again on the next call", async () => {
+    const electronDir = await linuxElectron();
+    const cacheDir = path.join(await tempDir(), "electron-44.4.5");
+    const calls: ("win32" | undefined)[] = [];
+    interruption.armed = true;
+
+    expect(() =>
+      fillWindowsElectronCache(electronDir, cacheDir, fakeInstaller(electronDir, calls)),
+    ).toThrow("interrupted");
+    expect(existsSync(cacheDir)).toBe(false);
+
+    fillWindowsElectronCache(electronDir, cacheDir, fakeInstaller(electronDir, calls));
+
+    expect(existsSync(path.join(cacheDir, "electron.exe"))).toBe(true);
+    expect(existsSync(`${cacheDir}.partial`)).toBe(false);
+  });
+
+  it("discards a temporary folder left by an earlier interrupted run", async () => {
+    const electronDir = await linuxElectron();
+    const cacheDir = path.join(await tempDir(), "electron-44.4.5");
+    await mkdir(`${cacheDir}.partial`);
+    await writeFile(path.join(`${cacheDir}.partial`, "stale.dll"), "left over");
+    const calls: ("win32" | undefined)[] = [];
+
+    fillWindowsElectronCache(electronDir, cacheDir, fakeInstaller(electronDir, calls));
+
+    expect(existsSync(path.join(cacheDir, "electron.exe"))).toBe(true);
+    expect(existsSync(path.join(cacheDir, "stale.dll"))).toBe(false);
   });
 });
