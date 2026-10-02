@@ -821,6 +821,50 @@ test("F2 on an open file renames it on disk and in its tab", async () => {
   }
 });
 
+/** Renames the file `from` in the tree, which is open in an editor tab, to `to`. */
+async function renameInTree(page: Page, tree: Locator, from: string, to: string): Promise<void> {
+  await tree.getByRole("button", { name: from }).press("F2");
+  const name = tree.getByRole("textbox", { name: "Name" });
+  await name.fill(to);
+  await name.press("Enter");
+  await expect(tree.getByRole("button", { name: to })).toBeVisible();
+  await expect(page.getByRole("tab", { name: to })).toBeVisible();
+}
+
+test("renaming an open file switches its editor between code and note settings, keeping what's typed", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    writeFile(path.join(workshop, "notes.txt"), "Groups.\n"),
+  );
+  try {
+    await tree.getByRole("button", { name: "notes.txt" }).click();
+    const editor = page.getByRole("textbox", { name: "notes.txt" });
+    const lineNumbers = page.locator(".cm-lineNumbers");
+    await expect(lineNumbers).toBeVisible();
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+
+    await renameInTree(page, tree, "notes.txt", "notes.md");
+    await expect(page.getByRole("textbox", { name: "notes.md" })).toHaveText("Groups.Rings.");
+    await expect(lineNumbers).toBeHidden();
+    // The typed text is saved to the renamed file.
+    await page.getByRole("textbox", { name: "notes.md" }).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Fields.");
+    await expect
+      .poll(() => readFile(path.join(root, "notes.md"), "utf8"))
+      .toBe("Groups.\nRings.Fields.");
+
+    await renameInTree(page, tree, "notes.md", "notes.txt");
+    await expect(page.getByRole("textbox", { name: "notes.txt" })).toHaveText(
+      "Groups.Rings.Fields.",
+    );
+    await expect(lineNumbers).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("renaming a folder keeps its open files' tabs, saving to their new paths", async () => {
   const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await mkdir(path.join(workshop, "math"));
