@@ -14,7 +14,7 @@ Findings go to `research/`; anything that changes a decision becomes an ADR.
 1. Monorepo foundation, by hand in an interactive session, not through Sandcastle: `packages/app`, `packages/host` and `packages/protocol`, TypeScript strict, Oxlint, Oxfmt, Knip, Vitest, `pnpm check`, lefthook and `CODING_STANDARDS.md`, following [research/typescript-standards.md](../research/typescript-standards.md) and [research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md). It comes first because Sandcastle's gate runs `pnpm check`. No planning skills needed: the decisions are in ADRs 0008 and 0009 and the drafts in those research files. Done: `pnpm dev` opens an empty window and starts the host; `pnpm check` runs in about 3 s.
 2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues. Done: spec #1, tickets #2 to #12, all `ready-for-agent`.
 3. The steps in "Before the first agent loop", then the first loop on a small ticket. The loop starts with #2.
-4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), and its prompts are written by hand instead of through Sandcastle ([workflow.md](workflow.md#agent-prompts)).
+4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), spec #87, and its prompts are written by hand instead of through Sandcastle ([workflow.md](workflow.md#agent-prompts)).
 
 ## Before the first agent loop
 
