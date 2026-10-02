@@ -1439,6 +1439,93 @@ function pageScrolls(page: Page): Promise<boolean> {
   );
 }
 
+/** The computed value of a CSS declaration, which is how the browser would paint `value` in the editor's context. */
+function computedBackground(page: Page, value: string): Promise<string> {
+  return page.evaluate((background) => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = background;
+    document.body.append(probe);
+    const computed = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return computed;
+  }, value);
+}
+
+test("a note's text is at most 80 characters wide and centered in a wide window, and a code file's isn't capped", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "notes.md"), `${"word ".repeat(80)}\n`);
+    await writeFile(path.join(workshop, "wide.txt"), `${"word ".repeat(80)}\n`);
+  });
+  try {
+    await resizeWindow(electronApp, 1800, 900);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeGreaterThan(1500);
+
+    await tree.getByRole("button", { name: "notes.md" }).click();
+    const note = page.getByRole("textbox", { name: "notes.md" });
+    await expect(note).toContainText("word");
+    const measure = () =>
+      note.evaluate((content) => {
+        const editor = content.closest(".cm-editor");
+        if (editor === null) throw new Error("The note has no editor around it.");
+        const probe = document.createElement("div");
+        probe.style.width = "80ch";
+        content.append(probe);
+        const eightyCharacters = probe.getBoundingClientRect().width;
+        probe.remove();
+        const contentBox = content.getBoundingClientRect();
+        const editorBox = editor.getBoundingClientRect();
+        return {
+          contentWidth: contentBox.width,
+          editorWidth: editorBox.width,
+          // The note's padding is 1rem on each side.
+          allowedWidth:
+            eightyCharacters +
+            2 * Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+          offCenter:
+            contentBox.left + contentBox.width / 2 - (editorBox.left + editorBox.width / 2),
+        };
+      });
+    await expect.poll(async () => (await measure()).editorWidth).toBeGreaterThan(1000);
+    const { contentWidth, allowedWidth, offCenter } = await measure();
+    expect(contentWidth).toBeLessThanOrEqual(allowedWidth + 1);
+    expect(contentWidth).toBeGreaterThan(allowedWidth - 40);
+    expect(Math.abs(offCenter)).toBeLessThan(1);
+
+    await tree.getByRole("button", { name: "wide.txt" }).click();
+    const code = page.getByRole("textbox", { name: "wide.txt" });
+    await expect(code).toContainText("word");
+    const codeBox = await code.evaluate((content) => ({
+      contentWidth: content.getBoundingClientRect().width,
+      editorWidth: content.closest(".cm-editor")?.getBoundingClientRect().width ?? 0,
+    }));
+    expect(codeBox.contentWidth).toBeGreaterThan(codeBox.editorWidth - 100);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("the active line is marked with a 30% mix of the accent, in a note and in code", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "notes.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "notes.txt"), "Groups.\n");
+  });
+  try {
+    const expected = await computedBackground(
+      page,
+      "color-mix(in oklch, var(--accent) 30%, transparent)",
+    );
+    await tree.getByRole("button", { name: "notes.md" }).click();
+    await page.getByRole("textbox", { name: "notes.md" }).click();
+    await expect(page.locator(".cm-activeLine")).toHaveCSS("background-color", expected);
+
+    await tree.getByRole("button", { name: "notes.txt" }).click();
+    await page.getByRole("textbox", { name: "notes.txt" }).click();
+    await expect(page.locator(".cm-activeLine")).toHaveCSS("background-color", expected);
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("the workshop screen fits the window, with a terminal, with no tab and with a note open", async () => {
   const { electronApp, page, tree } = await openWorkshopWith((workshop) =>
     writeFile(path.join(workshop, "notes.md"), "A short note.\n"),

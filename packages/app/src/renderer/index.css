@@ -127,6 +127,9 @@
   --syntax-meta: #565f89;
   --syntax-heading: #7aa2f7;
   --syntax-link: #7dcfff;
+  /* The editors, read by code-editor.tsx. A note's text column is at most this wide, in the note's font. */
+  --note-max-width: 80ch;
+  --active-line-background: color-mix(in oklch, var(--accent) 30%, transparent);
   /* The terminals' font too; terminal-panel.tsx reads it for xterm. */
   --font-code: "CaskaydiaCove Nerd Font Mono", monospace;
 }

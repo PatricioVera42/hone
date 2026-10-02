@@ -32,7 +32,7 @@ const theme = EditorView.theme({
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
     { backgroundColor: "color-mix(in oklch, var(--ring) 35%, transparent)" },
-  ".cm-activeLine": { backgroundColor: "color-mix(in oklch, var(--accent) 60%, transparent)" },
+  ".cm-activeLine": { backgroundColor: "var(--active-line-background)" },
   ".cm-gutters": {
     backgroundColor: "var(--background)",
     color: "var(--muted-foreground)",
@@ -71,7 +71,13 @@ const noteExtensions: Extension = [
   EditorView.lineWrapping,
   EditorView.theme({
     ".cm-scroller": { fontFamily: "inherit" },
-    ".cm-content": { padding: "1rem" },
+    // The scroller still fills the panel, so the margins beside the column stay clickable. The cap adds the padding
+    // because the content box is border-box, and `ch` is the note's font, which `.cm-content` inherits.
+    ".cm-content": {
+      padding: "1rem",
+      maxWidth: "calc(var(--note-max-width) + 2rem)",
+      margin: "0 auto",
+    },
   }),
   markdown({ base: markdownLanguage, codeLanguages: languages }),
 ];
