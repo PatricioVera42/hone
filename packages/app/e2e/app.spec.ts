@@ -1521,7 +1521,7 @@ test("a note's text is at most 80 characters wide and centered in a wide window,
   }
 });
 
-test("the active line is marked with a 30% mix of the accent, in a note and in code", async () => {
+test("the active line is marked with a 70% mix of the accent, in a note and in code", async () => {
   const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await writeFile(path.join(workshop, "notes.md"), "Groups.\n");
     await writeFile(path.join(workshop, "notes.txt"), "Groups.\n");
@@ -1529,7 +1529,7 @@ test("the active line is marked with a 30% mix of the accent, in a note and in c
   try {
     const expected = await computedBackground(
       page,
-      "color-mix(in oklch, var(--accent) 30%, transparent)",
+      "color-mix(in oklch, var(--accent) 70%, transparent)",
     );
     await tree.getByRole("button", { name: "notes.md" }).click();
     await page.getByRole("textbox", { name: "notes.md" }).click();
