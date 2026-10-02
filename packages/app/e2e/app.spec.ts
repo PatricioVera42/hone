@@ -890,6 +890,23 @@ function terminals(page: Page, title: string) {
   return page.getByRole("region", { name: `Terminal in ${title}` }).getByRole("list");
 }
 
+/** The rows of the terminals titled `title` that are exactly `text`. */
+function terminalRowsExactly(page: Page, title: string, text: string) {
+  return terminals(page, title)
+    .getByRole("listitem")
+    .filter({ hasText: new RegExp(`^\\s*${text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`) });
+}
+
+/** The rows of the terminals titled `title` that echo an interrupt (^C). */
+function interruptEchoes(page: Page, title: string) {
+  return terminals(page, title).getByRole("listitem").filter({ hasText: "^C" });
+}
+
+/** The highlighted selection of the terminal titled `title`, drawn by xterm: empty when nothing is selected. */
+function terminalSelection(page: Page, title: string) {
+  return page.getByRole("region", { name: `Terminal in ${title}` }).locator(".xterm-selection div");
+}
+
 /** Where `locator` is on the page, once it's visible. */
 async function boxOf(locator: Locator) {
   await expect(locator).toBeVisible();
@@ -903,13 +920,7 @@ async function runInTerminal(page: Page, title: string, command: string, output:
   await page.getByRole("region", { name: `Terminal in ${title}` }).click();
   await page.keyboard.type(command);
   await page.keyboard.press("Enter");
-  await expect(
-    terminals(page, title)
-      .getByRole("listitem")
-      .filter({
-        hasText: new RegExp(`^\\s*${output.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`),
-      }),
-  ).toHaveCount(1);
+  await expect(terminalRowsExactly(page, title, output)).toHaveCount(1);
 }
 
 test("Ctrl+` opens a terminal at the workshop root that runs commands", async () => {
@@ -935,6 +946,99 @@ test("Ctrl+` opens a terminal at the workshop root that runs commands", async ()
     await electronApp.close();
   }
 });
+
+/** Prints `text` in the terminal titled `title` and selects it by double-clicking its row. */
+async function printAndSelect(page: Page, title: string, text: string) {
+  await runInTerminal(page, title, `echo ${text}`, text);
+  // The accessibility rows sit on top of the screen, so the click goes to the terminal's own row at the same place.
+  const box = await boxOf(terminalRowsExactly(page, title, text));
+  await page.mouse.dblclick(box.x + 4, box.y + box.height / 2);
+  await expect(terminalSelection(page, title)).not.toHaveCount(0);
+}
+
+function readClipboard(electronApp: ElectronApplication): Promise<string> {
+  return electronApp.evaluate(({ clipboard }) => clipboard.readText());
+}
+
+function writeClipboard(electronApp: ElectronApplication, text: string): Promise<void> {
+  return electronApp.evaluate(({ clipboard }, written) => clipboard.writeText(written), text);
+}
+
+for (const copyKey of ["Control+C", "Control+Shift+C"]) {
+  test(`${copyKey} in a terminal copies the selection and clears it`, async () => {
+    const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+    try {
+      await writeClipboard(electronApp, "before");
+      await printAndSelect(page, "studies", "copyme");
+      await page.keyboard.press(copyKey);
+      await expect.poll(() => readClipboard(electronApp)).toBe("copyme");
+      await expect(terminalSelection(page, "studies")).toHaveCount(0);
+      // Nothing reached the shell: the prompt line has no interrupt echo (^C) in it.
+      await runInTerminal(page, "studies", "echo after", "after");
+      await expect(interruptEchoes(page, "studies")).toHaveCount(0);
+    } finally {
+      await electronApp.close();
+    }
+  });
+}
+
+test("Ctrl+C in a terminal with no selection interrupts the running command", async () => {
+  const { root, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    await page.getByRole("region", { name: "Terminal in studies" }).click();
+    await page.keyboard.type("echo started; sleep 100; echo done > interrupted.txt");
+    await page.keyboard.press("Enter");
+    // Once "started" is printed, the sleep is what's running.
+    await expect(terminalRowsExactly(page, "studies", "started")).toHaveCount(1);
+    await page.keyboard.press("Control+C");
+    await expect(interruptEchoes(page, "studies")).toHaveCount(1);
+    // The interrupt ended the sleep, so the prompt is back and takes the next command.
+    await runInTerminal(page, "studies", "echo prompt-is-back", "prompt-is-back");
+    await expect(stat(path.join(root, "interrupted.txt"))).rejects.toThrow();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Ctrl+Shift+C in a terminal with no selection doesn't interrupt the running command", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    await page.getByRole("region", { name: "Terminal in studies" }).click();
+    await page.keyboard.type("echo started; sleep 3; echo slept-through");
+    await page.keyboard.press("Enter");
+    // Once "started" is printed, the sleep is what's running.
+    await expect(terminalRowsExactly(page, "studies", "started")).toHaveCount(1);
+    await page.keyboard.press("Control+Shift+C");
+    // The sleep ran to its end, so it wasn't interrupted.
+    await expect(terminalRowsExactly(page, "studies", "slept-through")).toHaveCount(1, {
+      timeout: 10_000,
+    });
+    await expect(interruptEchoes(page, "studies")).toHaveCount(0);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+for (const pasteKey of ["Control+V", "Control+Shift+V"]) {
+  test(`${pasteKey} in a terminal pastes the clipboard once`, async () => {
+    const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+    try {
+      await writeClipboard(electronApp, "echo pasted-text");
+      await page.getByRole("region", { name: "Terminal in studies" }).click();
+      await page.keyboard.press(pasteKey);
+      // Not sent: the pasted text sits on the command line until Enter, and only once.
+      await expect(
+        terminals(page, "studies")
+          .getByRole("listitem")
+          .filter({ hasText: /echo pasted-text/ }),
+      ).toHaveCount(1);
+      await page.keyboard.press("Enter");
+      await expect(terminalRowsExactly(page, "studies", "pasted-text")).toHaveCount(1);
+    } finally {
+      await electronApp.close();
+    }
+  });
+}
 
 test("Ctrl+` inside a terminal opens another in its group, and exit closes a terminal's tab", async () => {
   const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
