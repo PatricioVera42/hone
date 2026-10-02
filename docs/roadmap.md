@@ -56,7 +56,7 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
 - The app converts a PDF automatically when one is added to a project.
 - Unsigned Windows installer on GitHub Releases, with a basic landing page.
 - Graph view, then Mermaid diagrams.
-- Themes: a section in the app settings to pick one of 7 or 8 built-in themes or a custom one, with instructions for writing your own. Each theme is a CSS file that sets shadcn's variables, which color the whole app (ADR 0008). The editor's look (syntax colors, note width, active line) can be set separately for notes and code. Stage 1 ships dark only.
+- Themes: a section in the app settings to pick one of 7 or 8 built-in themes or a custom one, with instructions for writing your own. Each theme is a CSS file that sets shadcn's variables, which color the whole app (ADR 0008). The editor's look (syntax colors, note width, active line) can be set separately for notes and code. Stage 1 ships dark only. The first two built-in themes are Tokyo Night, which becomes Hone's dark theme (#81), and Catppuccin Mocha, picked after comparing palettes on a prototype.
 - Optional manual save (Ctrl+S) instead of autosave.
 - Tell notes apart visually from agent files (`AGENTS.md`, `PROGRESS.md`, skills) in the tree.
 - Code editing close to VS Code: LSP (autocomplete, errors, go to definition), debugger and visual git.
