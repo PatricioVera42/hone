@@ -106,6 +106,34 @@ export function TerminalPanel({ client, cwd, label, isActive, onExit }: Terminal
       });
       cleanups.push(() => typing.dispose());
 
+      // Electron has no application menu here to supply the clipboard shortcuts, like Windows Terminal and VS Code
+      // do: Ctrl+C copies a selection and otherwise interrupts, and Ctrl+V pastes (giving up a raw Ctrl+V for the shell).
+      opened.attachCustomKeyEventHandler((event) => {
+        if (!event.ctrlKey || event.altKey || event.metaKey) return true;
+        const key = event.key.toLowerCase();
+        const copies = key === "c" && (event.shiftKey || opened.hasSelection());
+        const pastes = key === "v";
+        if (!copies && !pastes) return true;
+        // The keypress and keyup of the same key must not reach the shell either.
+        if (event.type !== "keydown") return false;
+        // Stops Chromium's own paste, which would paste a second time.
+        event.preventDefault();
+        if (copies) {
+          if (opened.hasSelection()) {
+            navigator.clipboard.writeText(opened.getSelection()).catch(reportError);
+            opened.clearSelection();
+          }
+        } else {
+          navigator.clipboard
+            .readText()
+            .then((text) => {
+              opened.paste(text);
+            })
+            .catch(reportError);
+        }
+        return false;
+      });
+
       const result = await client.call(terminalOpenMethod, {
         cwd,
         cols: opened.cols,
