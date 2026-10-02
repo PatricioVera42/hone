@@ -736,13 +736,17 @@ test("closing the window with edits that aren't saved yet asks first: Cancel kee
 });
 
 /** Launches the app on a new workshop that `setUp` fills first, and opens it. */
-async function openWorkshopWith(setUp: (root: string) => Promise<void>) {
+async function openWorkshopWith(
+  setUp: (root: string) => Promise<void>,
+  beforeOpening: (page: Page) => Promise<void> = () => Promise.resolve(),
+) {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const root = await makeWorkshop(temporary, "studies");
   await setUp(root);
   const userData = path.join(temporary, "user-data");
   const electronApp = await launch(userData);
   const page = await electronApp.firstWindow();
+  await beforeOpening(page);
   await pickFolderInDialog(electronApp, root);
   await page.getByRole("button", { name: "Open workshop" }).click();
   const tree = page.getByRole("navigation", { name: "Files" });
@@ -942,6 +946,76 @@ test("Ctrl+` opens a terminal at the workshop root that runs commands", async ()
         .filter({ hasText: /^\s*hello\s*$/ }),
     ).toHaveCount(1);
     await expect.poll(() => readFile(path.join(root, "greeting.txt"), "utf8")).toBe("hello\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+/**
+ * Makes the page press `key` (a `code` and a `key`) at the very moment a tab named `tabName` shows. A mutation
+ * observer's callback runs as a microtask, before React renders again, so when that tab belongs to a layout that
+ * was just built, the press lands before the editor area has re-rendered with it.
+ */
+function pressWhenTabShows(
+  page: Page,
+  tabName: string,
+  key: { code: string; key: string },
+): Promise<void> {
+  return page.evaluate(
+    ({ tab, pressed }) => {
+      const observer = new MutationObserver(() => {
+        const shown = [...document.querySelectorAll(".dv-tab")].some(
+          (element) => element.textContent === tab,
+        );
+        if (!shown) return;
+        observer.disconnect();
+        document.body.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            ...pressed,
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    },
+    { tab: tabName, pressed: key },
+  );
+}
+
+test("Ctrl+` pressed as the default layout's terminal tab shows still opens a terminal", async () => {
+  const { electronApp, page } = await openWorkshopWith(
+    () => Promise.resolve(),
+    (opening) => pressWhenTabShows(opening, "studies", { code: "Backquote", key: "`" }),
+  );
+  try {
+    await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(2);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Ctrl+W pressed as a restored layout's tabs show still closes the active tab", async () => {
+  const { electronApp, page, tree, root } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "algebra.md"), "Groups.\n");
+  });
+  const work = await makeWorkshop(await mkdtemp(path.join(tmpdir(), "hone-e2e-")), "work");
+  try {
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
+
+    await pickFolderInDialog(electronApp, work);
+    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
+
+    await pressWhenTabShows(page, "algebra.md", { code: "KeyW", key: "w" });
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "work", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
   } finally {
     await electronApp.close();
   }
