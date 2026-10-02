@@ -865,6 +865,39 @@ test("renaming an open file switches its editor between code and note settings, 
   }
 });
 
+test("syntax colors come from Tokyo Night: in a TypeScript file and in a note", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(
+      path.join(workshop, "greet.ts"),
+      'const answer: number = 42;\nconst greeting = "hello"; // say hi\ntype Name = string;\n',
+    );
+    await writeFile(path.join(workshop, "algebra.md"), "# Algebra\n");
+  });
+  try {
+    await tree.getByRole("button", { name: "greet.ts" }).click();
+    const code = page.getByRole("textbox", { name: "greet.ts" });
+    const token = (text: RegExp) => code.locator("span").filter({ hasText: text }).last();
+    await expect(token(/^const$/).first()).toHaveCSS("color", "rgb(187, 154, 247)");
+    await expect(token(/^"hello"$/)).toHaveCSS("color", "rgb(158, 206, 106)");
+    await expect(token(/^42$/)).toHaveCSS("color", "rgb(255, 158, 100)");
+    await expect(token(/^Name$/)).toHaveCSS("color", "rgb(42, 195, 222)");
+    await expect(token(/^\/\/ say hi$/)).toHaveCSS("color", "rgb(86, 95, 137)");
+
+    await tree.getByRole("button", { name: "algebra.md" }).click();
+    const note = page.getByRole("textbox", { name: "algebra.md" });
+    await expect(note.locator("span").filter({ hasText: /^#$/ })).toHaveCSS(
+      "color",
+      "rgb(86, 95, 137)",
+    );
+    await expect(note.locator("span").filter({ hasText: /^\s*Algebra$/ })).toHaveCSS(
+      "color",
+      "rgb(122, 162, 247)",
+    );
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("renaming a folder keeps its open files' tabs, saving to their new paths", async () => {
   const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await mkdir(path.join(workshop, "math"));
