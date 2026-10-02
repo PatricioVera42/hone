@@ -58,7 +58,7 @@ const sandbox = await createSandbox({
 
 try {
   const result = await sandbox.run({
-    agent: claudeCode("claude-opus-5-5"),
+    agent: claudeCode("claude-sonnet-5-5", { effort: "high" }),
     promptFile: ".sandcastle/implement.md",
     // Outside a terminal, `--comments` prints only the comments, so the body comes from a second call.
     promptArgs: {
@@ -83,7 +83,7 @@ try {
         `pnpm check failed; fix attempt ${String(attempt)} of ${String(maxFixAttempts)}.\n`,
       );
       const fix = await sandbox.run({
-        agent: claudeCode("claude-opus-5-5"),
+        agent: claudeCode("claude-sonnet-5-5", { effort: "high" }),
         promptFile: ".sandcastle/fix-check.md",
         promptArgs: {
           ISSUE_NUMBER: issue,
