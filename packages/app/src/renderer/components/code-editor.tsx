@@ -35,7 +35,7 @@ const theme = EditorView.theme({
   ".cm-activeLine": { backgroundColor: "var(--active-line-background)" },
   ".cm-gutters": {
     backgroundColor: "var(--background)",
-    color: "var(--muted-foreground)",
+    color: "var(--line-number)",
     border: "none",
   },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--foreground)" },

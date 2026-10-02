@@ -129,43 +129,63 @@
   --syntax-link: #7dcfff;
   /* The editors, read by code-editor.tsx. A note's text column is at most this wide, in the note's font. */
   --note-max-width: 80ch;
+  --line-number: oklch(0.556 0 0);
   --active-line-background: color-mix(in oklch, var(--accent) 30%, transparent);
+  /* The terminals' 16 ANSI colors (Tokyo Night), read by terminal-theme.ts. */
+  --terminal-black: #15161e;
+  --terminal-red: #f7768e;
+  --terminal-green: #9ece6a;
+  --terminal-yellow: #e0af68;
+  --terminal-blue: #7aa2f7;
+  --terminal-magenta: #bb9af7;
+  --terminal-cyan: #7dcfff;
+  --terminal-white: #a9b1d6;
+  --terminal-bright-black: #414868;
+  --terminal-bright-red: #ff899d;
+  --terminal-bright-green: #9fe044;
+  --terminal-bright-yellow: #faba4a;
+  --terminal-bright-blue: #8db0ff;
+  --terminal-bright-magenta: #c7a9ff;
+  --terminal-bright-cyan: #a4daff;
+  --terminal-bright-white: #c0caf5;
   /* The terminals' font too; terminal-panel.tsx reads it for xterm. */
   --font-code: "CaskaydiaCove Nerd Font Mono", monospace;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #1a1b26;
+  --foreground: #c0caf5;
+  --card: #16161e;
+  --card-foreground: #c0caf5;
+  --popover: #16161e;
+  --popover-foreground: #c0caf5;
+  --primary: #7aa2f7;
+  --primary-foreground: #1a1b26;
+  --secondary: #292e42;
+  --secondary-foreground: #c0caf5;
+  --muted: #16161e;
+  --muted-foreground: #787c99;
+  --accent: #292e42;
+  --accent-foreground: #c0caf5;
+  --destructive: #f7768e;
+  --border: #101014;
+  --input: #292e42;
+  --ring: #3d59a1;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #16161e;
+  --sidebar-foreground: #c0caf5;
+  --sidebar-primary: #7aa2f7;
+  --sidebar-primary-foreground: #1a1b26;
+  --sidebar-accent: #292e42;
+  --sidebar-accent-foreground: #c0caf5;
+  --sidebar-border: #101014;
+  --sidebar-ring: #3d59a1;
+  --line-number: #3b4261;
+  --active-line-background: color-mix(in oklch, var(--accent) 70%, transparent);
   --syntax-keyword: #bb9af7;
   --syntax-string: #9ece6a;
   --syntax-number: #ff9e64;
@@ -176,6 +196,22 @@
   --syntax-meta: #565f89;
   --syntax-heading: #7aa2f7;
   --syntax-link: #7dcfff;
+  --terminal-black: #15161e;
+  --terminal-red: #f7768e;
+  --terminal-green: #9ece6a;
+  --terminal-yellow: #e0af68;
+  --terminal-blue: #7aa2f7;
+  --terminal-magenta: #bb9af7;
+  --terminal-cyan: #7dcfff;
+  --terminal-white: #a9b1d6;
+  --terminal-bright-black: #414868;
+  --terminal-bright-red: #ff899d;
+  --terminal-bright-green: #9fe044;
+  --terminal-bright-yellow: #faba4a;
+  --terminal-bright-blue: #8db0ff;
+  --terminal-bright-magenta: #c7a9ff;
+  --terminal-bright-cyan: #a4daff;
+  --terminal-bright-white: #c0caf5;
 }
 
 /* dockview's theme variables, derived from shadcn's so the editor area follows the UI, light or dark. */

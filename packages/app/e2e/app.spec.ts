@@ -898,6 +898,23 @@ test("syntax colors come from Tokyo Night: in a TypeScript file and in a note", 
   }
 });
 
+test("the dark theme is Tokyo Night across the app, with dim line numbers", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "notes.txt"), "Groups.\nRings.\n");
+  });
+  try {
+    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(26, 27, 38)");
+    await expect(page.locator("body")).toHaveCSS("color", "rgb(192, 202, 245)");
+    await tree.getByRole("button", { name: "notes.txt" }).click();
+    // The cursor starts on the first line, so the second line's number is the dim one.
+    const lineNumbers = page.locator(".cm-lineNumbers .cm-gutterElement");
+    await expect(lineNumbers.getByText("2")).toHaveCSS("color", "rgb(59, 66, 97)");
+    await expect(lineNumbers.getByText("1")).toHaveCSS("color", "rgb(192, 202, 245)");
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("renaming a folder keeps its open files' tabs, saving to their new paths", async () => {
   const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await mkdir(path.join(workshop, "math"));
