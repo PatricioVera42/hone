@@ -14,8 +14,7 @@ Findings go to `research/`; anything that changes a decision becomes an ADR.
 1. Monorepo foundation, by hand in an interactive session, not through Sandcastle: `packages/app`, `packages/host` and `packages/protocol`, TypeScript strict, Oxlint, Oxfmt, Knip, Vitest, `pnpm check`, lefthook and `CODING_STANDARDS.md`, following [research/typescript-standards.md](../research/typescript-standards.md) and [research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md). It comes first because Sandcastle's gate runs `pnpm check`. No planning skills needed: the decisions are in ADRs 0008 and 0009 and the drafts in those research files. Done: `pnpm dev` opens an empty window and starts the host; `pnpm check` runs in about 3 s.
 2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues. Done: spec #1, tickets #2 to #12, all `ready-for-agent`.
 3. The steps in "Before the first agent loop", then the first loop on a small ticket. The loop starts with #2.
-
-Stage 2 (agents) is plain text and can be done in parallel at any point.
+4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), and its prompts are written by hand instead of through Sandcastle ([workflow.md](workflow.md#agent-prompts)).
 
 ## Before the first agent loop
 
@@ -40,11 +39,14 @@ An Obsidian-like app with an integrated terminal and the agent workflow (generat
   1. Skeleton: open a workshop, file tree, Markdown and code editor, terminal, dockview layout.
      Set up shadcn/ui with `@shadcn/lint` and install shadcn's agent skill (`pnpm dlx skills add shadcn/ui`) when `packages/app` is created (ADR 0008).
      A Playwright test that opens the app and checks that the renderer has no `process` or `require` and that the page has a Content Security Policy. It backs up the `hone/electron-security` lint rule, which only catches literal values (`sandbox: false`, not `sandbox: isDev`).
-  2. Agents: `/onboard`, `/create`, `/refine`, `/cascade`, `/close`, `/quick-close` and `library-default/`. Plain text, so written and tested with Claude Code in parallel with stage 1.
-     For study projects, `library-default/` includes:
-     - A study skill adapted from Matt Pocock's `teach` (MIT). It looks for answers in the course material the user added to the project first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
-     - A `find-in-workshop` skill: it walks up to the workshop root (the folder with `.hone/generator/`) and searches by name and content from there, skipping `node_modules`, `.git` and `.hone`. With several matches it asks which one; with none it says so and asks, never guessing the content. Every generated `AGENTS.md` carries a line telling the agent to use it when it can't find a file or folder the user mentions. Check first whether Claude Code asks permission to read outside the folder it was opened in.
-     - A PDF script plus the skill that invokes it, run by the user. `name.pdf` becomes `name.md` next to it, with page markers. Pages with little text or with drawings are exported whole as `name.assets/pNN.png` and embedded with `![[name.assets/pNN.png]]`. The user can replace an image with a tighter crop. The agent reads the Markdown and opens an image or a PDF page only when it needs it.
+  2. Agents: plain text, written and tested by hand in parallel with the other stages ([workflow.md](workflow.md#agent-prompts)). In two parts:
+     - 2a. The basic loop for one study project, without nesting: `/onboard`, `/create`, `/refine`, and in `library-default/` the skills `study`, `close` and `quick-close`. Only study projects.
+        - `study` is adapted from Matt Pocock's `teach` (MIT). It keeps how `teach` teaches (the zone of proximal development, retrieval practice) but writes lessons and references as Markdown notes, builds quizzes and visuals as HTML files it opens in the browser, and leaves the record of what was learned to `PROGRESS.md` through `/close`. It looks for answers in the project's material first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
+        - When a new project has no material, `/create` offers to search the web for trustworthy sources, and the ones the user picks become material.
+        - `/refine` works on one project or on the profile. After a profile change it offers to refresh every project's inherited context, a one-level cascade.
+     - 2b. `/cascade` and nested projects, importing a global skill into the library, and two more items for `library-default/`:
+        - A `find-in-workshop` skill: it walks up to the workshop root (the folder with `.hone/generator/`) and searches by name and content from there, skipping `node_modules`, `.git` and `.hone`. With several matches it asks which one; with none it says so and asks, never guessing the content. Every generated `AGENTS.md` carries a line telling the agent to use it when it can't find a file or folder the user mentions. Both tools ask before reading outside the folder they started in (Claude Code in its manual mode), and ADR 0002 gives project agents no permission settings, so 2b has to decide how this skill gets that access.
+        - A PDF script plus the skill that invokes it, run by the user. `name.pdf` becomes `name.md` next to it, with page markers. Pages with little text or with drawings are exported whole as `name.assets/pNN.png` and embedded with `![[name.assets/pNN.png]]`. The user can replace an image with a tighter crop. The agent reads the Markdown and opens an image or a PDF page only when it needs it.
   3. Projects in the app: icon and type in the tree, "open session" button, progress summary, `hone .` with focus.
   4. Obsidian features (list above).
   5. Distribution: automatic host install in WSL.

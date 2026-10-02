@@ -19,6 +19,10 @@ How Hone is built: planning with a human, implementation by an agent loop, check
 
 Docs and small human changes can go straight to `main`, with the maintainer in the ruleset's bypass list. Code goes through a pull request so CI and CodeRabbit see it.
 
+## Agent prompts
+
+The generator's instructions and the library skills are prompts, not code. No `pnpm check` can tell whether one works; only running it can. So they skip Sandcastle and are written in interactive sessions: the maintainer runs them in a test workshop with Claude Code and asks for changes. Once a version is good enough to keep iterating on, it goes to `main` in a pull request, one per skill or small group, whose description lists the manual scenarios to run before merging. OpenCode gets one smoke test when a stage's prompts are complete, not one per change. Code that supports the prompts, such as copying the generator into a new workshop, is a normal ticket for Sandcastle.
+
 ## Keeping pull requests manageable
 
 - **Small tickets.** `/to-tickets` sizes each ticket to one agent session, so each pull request is quick to review and rarely collides with another.

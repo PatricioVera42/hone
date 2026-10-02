@@ -6,6 +6,6 @@ The generator has its own folder, `.hone/generator/` at the workshop root, with 
 
 - Whatever every project agent should know, such as the profile summary, reaches it through `.hone/inherited.md` and the cascade (ADR 0005), never through an `AGENTS.md` at the workshop root.
 - Hone recognizes the workshop root by walking up until it finds `.hone/generator/`. A plain `.hone/` isn't enough, because every project has one. A `.hone/workshop.json` can be added when the workshop needs its own settings.
-- The generator only reads inside the workshop, with one exception: it lists the names of the user's global skills (ADR 0012).
+- The generator only reads inside the workshop, with two exceptions: it lists the names of the user's global skills (ADR 0012), and when a new project has no material it can search the web for trustworthy sources, which the user picks from.
 
 Research: [research/spike-02-agent-context-loading.md](../../research/spike-02-agent-context-loading.md).
