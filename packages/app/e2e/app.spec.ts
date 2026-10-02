@@ -898,6 +898,23 @@ test("syntax colors come from Tokyo Night: in a TypeScript file and in a note", 
   }
 });
 
+test("the dark theme is Tokyo Night across the app, with dim line numbers", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    await writeFile(path.join(workshop, "notes.txt"), "Groups.\nRings.\n");
+  });
+  try {
+    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(26, 27, 38)");
+    await expect(page.locator("body")).toHaveCSS("color", "rgb(192, 202, 245)");
+    await tree.getByRole("button", { name: "notes.txt" }).click();
+    // The cursor starts on the first line, so the second line's number is the dim one.
+    const lineNumbers = page.locator(".cm-lineNumbers .cm-gutterElement");
+    await expect(lineNumbers.getByText("2")).toHaveCSS("color", "rgb(59, 66, 97)");
+    await expect(lineNumbers.getByText("1")).toHaveCSS("color", "rgb(192, 202, 245)");
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("renaming a folder keeps its open files' tabs, saving to their new paths", async () => {
   const { root, electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await mkdir(path.join(workshop, "math"));
@@ -1504,7 +1521,7 @@ test("a note's text is at most 80 characters wide and centered in a wide window,
   }
 });
 
-test("the active line is marked with a 30% mix of the accent, in a note and in code", async () => {
+test("the active line is marked with a 70% mix of the accent, in a note and in code", async () => {
   const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await writeFile(path.join(workshop, "notes.md"), "Groups.\n");
     await writeFile(path.join(workshop, "notes.txt"), "Groups.\n");
@@ -1512,7 +1529,7 @@ test("the active line is marked with a 30% mix of the accent, in a note and in c
   try {
     const expected = await computedBackground(
       page,
-      "color-mix(in oklch, var(--accent) 30%, transparent)",
+      "color-mix(in oklch, var(--accent) 70%, transparent)",
     );
     await tree.getByRole("button", { name: "notes.md" }).click();
     await page.getByRole("textbox", { name: "notes.md" }).click();

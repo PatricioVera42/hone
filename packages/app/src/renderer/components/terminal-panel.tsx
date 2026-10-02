@@ -11,29 +11,17 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import { useEffect, useEffectEvent, useRef } from "react";
 import type { HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
+import { computeTerminalTheme } from "@/terminal-theme.ts";
 
 const fontSize = 13;
 
-/**
- * xterm's theme, from shadcn's variables where the terminal is, like the code editors' colors. xterm can't resolve
- * `var()`, so each one is computed first.
- */
 function computeTheme(element: HTMLElement): ITheme {
   const probe = document.createElement("span");
   element.append(probe);
-  function compute(color: string): string {
+  const theme = computeTerminalTheme((color) => {
     probe.style.color = color;
     return getComputedStyle(probe).color;
-  }
-  const theme: ITheme = {
-    background: compute("var(--background)"),
-    foreground: compute("var(--foreground)"),
-    cursor: compute("var(--foreground)"),
-    cursorAccent: compute("var(--background)"),
-    // Opaque, since xterm drops a translucent color it can't parse as hex or rgba(), and gives an opaque one its
-    // own transparency.
-    selectionBackground: compute("var(--foreground)"),
-  };
+  });
   probe.remove();
   return theme;
 }
