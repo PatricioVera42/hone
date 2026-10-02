@@ -110,9 +110,9 @@ export function TerminalPanel({ client, cwd, label, isActive, onExit }: Terminal
       // do: Ctrl+C copies a selection and otherwise interrupts, and Ctrl+V pastes (giving up a raw Ctrl+V for the shell).
       opened.attachCustomKeyEventHandler((event) => {
         if (!event.ctrlKey || event.altKey || event.metaKey) return true;
-        const key = event.key.toLowerCase();
-        const copies = key === "c" && (event.shiftKey || opened.hasSelection());
-        const pastes = key === "v";
+        // keyCode, not key, because it's what xterm reads to send ^C and ^V, and it stays 67 and 86 on non-Latin layouts.
+        const copies = event.keyCode === 67 && (event.shiftKey || opened.hasSelection());
+        const pastes = event.keyCode === 86;
         if (!copies && !pastes) return true;
         // The keypress and keyup of the same key must not reach the shell either.
         if (event.type !== "keydown") return false;
