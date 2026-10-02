@@ -116,6 +116,17 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Syntax highlighting (Tokyo Night), read by code-editor.tsx. Hone ships dark only, so the light values are the same for now. */
+  --syntax-keyword: #bb9af7;
+  --syntax-string: #9ece6a;
+  --syntax-number: #ff9e64;
+  --syntax-type: #2ac3de;
+  --syntax-function: #7aa2f7;
+  --syntax-property: #73daca;
+  --syntax-comment: #565f89;
+  --syntax-meta: #565f89;
+  --syntax-heading: #7aa2f7;
+  --syntax-link: #7dcfff;
   /* The terminals' font too; terminal-panel.tsx reads it for xterm. */
   --font-code: "CaskaydiaCove Nerd Font Mono", monospace;
 }
@@ -152,6 +163,16 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --syntax-keyword: #bb9af7;
+  --syntax-string: #9ece6a;
+  --syntax-number: #ff9e64;
+  --syntax-type: #2ac3de;
+  --syntax-function: #7aa2f7;
+  --syntax-property: #73daca;
+  --syntax-comment: #565f89;
+  --syntax-meta: #565f89;
+  --syntax-heading: #7aa2f7;
+  --syntax-link: #7dcfff;
 }
 
 /* dockview's theme variables, derived from shadcn's so the editor area follows the UI, light or dark. */

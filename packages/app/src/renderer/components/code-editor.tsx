@@ -24,7 +24,7 @@ import { createLanguageLoader } from "@/language-loader.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
 
-// Colors come from shadcn's variables, so the editor follows the rest of the UI, light or dark.
+// The background and plain text come from shadcn's variables, so the editor follows the rest of the UI, light or dark.
 const theme = EditorView.theme({
   "&": { height: "100%", backgroundColor: "var(--background)", color: "var(--foreground)" },
   "&.cm-focused": { outline: "none" },
@@ -41,30 +41,28 @@ const theme = EditorView.theme({
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--foreground)" },
 });
 
+// Every color is a --syntax-* variable (index.css), so a theme changes the highlighting by setting them.
 const highlightStyle = HighlightStyle.define([
-  { tag: tags.heading, fontWeight: "600" },
+  { tag: tags.heading, color: "var(--syntax-heading)", fontWeight: "600" },
   { tag: tags.strong, fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: [tags.link, tags.url], color: "var(--primary)", textDecoration: "underline" },
+  { tag: [tags.link, tags.url], color: "var(--syntax-link)", textDecoration: "underline" },
   { tag: tags.monospace, fontFamily: "var(--font-code)" },
+  { tag: tags.comment, color: "var(--syntax-comment)", fontStyle: "italic" },
   {
-    tag: [tags.comment, tags.meta, tags.processingInstruction, tags.contentSeparator],
-    color: "var(--muted-foreground)",
+    tag: [tags.meta, tags.processingInstruction, tags.contentSeparator],
+    color: "var(--syntax-meta)",
   },
+  { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--syntax-keyword)" },
+  { tag: [tags.string, tags.regexp], color: "var(--syntax-string)" },
   {
-    tag: [tags.keyword, tags.operatorKeyword, tags.modifier],
-    color: "var(--primary)",
-    fontWeight: "600",
+    tag: [tags.number, tags.bool, tags.null, tags.atom],
+    color: "var(--syntax-number)",
   },
-  {
-    tag: [tags.string, tags.regexp, tags.number, tags.bool, tags.null, tags.atom],
-    color: "var(--chart-2)",
-  },
-  {
-    tag: [tags.function(tags.variableName), tags.typeName, tags.className, tags.propertyName],
-    color: "var(--chart-3)",
-  },
+  { tag: [tags.typeName, tags.className], color: "var(--syntax-type)" },
+  { tag: tags.function(tags.variableName), color: "var(--syntax-function)" },
+  { tag: tags.propertyName, color: "var(--syntax-property)" },
   { tag: tags.invalid, color: "var(--destructive)" },
 ]);
 
