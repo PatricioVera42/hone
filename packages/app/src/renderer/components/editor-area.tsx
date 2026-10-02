@@ -238,6 +238,8 @@ export function EditorArea({
     () => ({ client, openFiles, tabCloseGuards }),
     [client, openFiles, tabCloseGuards],
   );
+  // Set in handleReady, ahead of the render that sets `editors`, so a shortcut pressed in between still finds them.
+  const readyEditors = useRef<DockviewApi>(undefined);
   const lastTerminal = useRef<IDockviewPanel>(undefined);
 
   useEffect(() => {
@@ -286,12 +288,13 @@ export function EditorArea({
       // Before xterm sees it, which would type it into the shell.
       event.preventDefault();
       event.stopPropagation();
-      if (editors !== undefined)
-        openTerminalTab(editors, "", workshopName, lastTerminal.current?.group);
+      if (readyEditors.current !== undefined) {
+        openTerminalTab(readyEditors.current, "", workshopName, lastTerminal.current?.group);
+      }
     }
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [editors, workshopName]);
+  }, [workshopName]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -299,18 +302,19 @@ export function EditorArea({
         return;
       }
       event.preventDefault();
-      const panel = editors?.activePanel;
+      const panel = readyEditors.current?.activePanel;
       if (panel !== undefined) void closeTab(tabCloseGuards, panel.api);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editors, tabCloseGuards]);
+  }, [tabCloseGuards]);
 
   function handleReady(event: DockviewReadyEvent): void {
     const { api } = event;
     if (layoutLoad.status === "loaded") showLayout(api, layoutLoad.saved, workshopName);
     // Shown before the effect that tracks the last active terminal starts, so Ctrl+` joins one from the layout.
     lastTerminal.current = api.panels.find(isTerminal);
+    readyEditors.current = api;
     setEditors(api);
     onReady({
       api,
