@@ -38,7 +38,8 @@
         "case": "kebabCase"
       }
     ],
-    "hone/electron-security": "error"
+    "hone/electron-security": "error",
+    "hone/no-throw-in-bare-catch": "error"
   },
   "overrides": [
     {
