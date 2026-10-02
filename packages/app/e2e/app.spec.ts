@@ -1497,6 +1497,82 @@ function computedBackground(page: Page, value: string): Promise<string> {
   }, value);
 }
 
+test("a code editor scrolled both ways has thin sliders without arrow buttons", async () => {
+  const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
+    const lines = Array.from({ length: 200 }, () => "word ".repeat(100));
+    await writeFile(path.join(workshop, "long.txt"), lines.join("\n"));
+  });
+  try {
+    await tree.getByRole("button", { name: "long.txt" }).click();
+    const scroller = page.locator(".cm-scroller");
+    await expect(scroller).toBeVisible();
+    // Both scrollbars take room in the scroller only if it overflows both ways.
+    await expect
+      .poll(() =>
+        scroller.evaluate((element) => [
+          element.scrollHeight > element.clientHeight,
+          element.scrollWidth > element.clientWidth,
+        ]),
+      )
+      .toEqual([true, true]);
+    const style = await scroller.evaluate((element) => ({
+      width: getComputedStyle(element, "::-webkit-scrollbar").width,
+      height: getComputedStyle(element, "::-webkit-scrollbar").height,
+      button: getComputedStyle(element, "::-webkit-scrollbar-button").display,
+      thumb: getComputedStyle(element, "::-webkit-scrollbar-thumb").backgroundColor,
+    }));
+    expect(style).toEqual({
+      width: "10px",
+      height: "10px",
+      button: "none",
+      thumb: await computedBackground(page, "var(--scrollbar-thumb)"),
+    });
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a terminal's scrollbar slider is the foreground at 22% at rest, 35% on hover and 50% while dragged", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    await runInTerminal(page, "studies", "seq 1 300", "300");
+    const slider = page.getByRole("region", { name: "Terminal in studies" }).locator(".slider");
+    const visibleSlider = slider.and(page.locator(":not(.invisible) > .slider"));
+    await expect(visibleSlider).toHaveCSS("background-color", "rgba(192, 202, 245, 0.22)");
+
+    const box = await boxOf(visibleSlider);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(visibleSlider).toHaveCSS("background-color", "rgba(192, 202, 245, 0.35)");
+    await page.mouse.down();
+    await expect(visibleSlider).toHaveCSS("background-color", "rgba(192, 202, 245, 0.5)");
+    await page.mouse.up();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("dockview's scrollbar is colored by the same variable as the sliders", async () => {
+  const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
+  try {
+    const expected = await computedBackground(page, "var(--scrollbar-thumb)");
+    const dockview = page.locator(".hone-editor-area .dockview-theme-light").first();
+    await expect
+      .poll(() =>
+        dockview.evaluate((element) => {
+          const probe = document.createElement("div");
+          element.append(probe);
+          probe.style.backgroundColor = "var(--dv-scrollbar-background-color)";
+          const computed = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return computed;
+        }),
+      )
+      .toBe(expected);
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("a note's text is at most 80 characters wide and centered in a wide window, and a code file's isn't capped", async () => {
   const { electronApp, page, tree } = await openWorkshopWith(async (workshop) => {
     await writeFile(path.join(workshop, "notes.md"), `${"word ".repeat(80)}\n`);
