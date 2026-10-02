@@ -18,8 +18,9 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
+import { createLanguageLoader } from "@/language-loader.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
 
@@ -87,6 +88,14 @@ function isNote(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
 
+// Holds the language of a code file, which loads after the view is built.
+const languageCompartment = new Compartment();
+const modeCompartment = new Compartment();
+const labelCompartment = new Compartment();
+
+const noteMode: Extension = noteExtensions;
+const codeMode: Extension = [codeExtensions, languageCompartment.of([])];
+
 // Kept as the file has them, so saving writes the same line endings back.
 function lineSeparatorFor(content: string): Extension {
   return content.includes("\r\n") ? EditorState.lineSeparator.of("\r\n") : [];
@@ -104,10 +113,11 @@ export interface EditorConnection {
 }
 
 interface CodeEditorProps {
-  /** The file's protocol path when it was opened, relative to the workshop root, which picks its language. */
+  /**
+   * The file's current protocol path, relative to the workshop root, which a rename changes. It picks the editor's
+   * accessible name, its language and whether it shows a note or code, without rebuilding the editor.
+   */
   readonly path: string;
-  /** The editor's accessible name: the file's current protocol path, which a rename changes. */
-  readonly label: string;
   /** The content the editor starts with. Later changes come through the {@link EditorContent} given to `connect`. */
   readonly content: string;
   /** Called once the editor is mounted, with a handle to read and replace its content. */
@@ -118,20 +128,18 @@ interface CodeEditorProps {
  * A CodeMirror editor for a file's content. A note gets Markdown with GFM; any other file gets the language
  * `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
  */
-export function CodeEditor({ path, label, content, connect }: CodeEditorProps) {
+export function CodeEditor({ path, content, connect }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(undefined);
-  const [labelCompartment] = useState(() => new Compartment());
-  // Read once when the view is built; later labels come through the compartment.
-  const initialLabel = useEffectEvent(() => label);
+  const languageLoader = useRef<ReturnType<typeof createLanguageLoader>>(undefined);
+  // Read once when the view is built; later paths come through the compartments.
+  const initialPath = useEffectEvent(() => path);
   // Not a dependency of the view's effect: a new callback mustn't rebuild the view and lose what's in it.
   const connectEditor = useEffectEvent(connect);
 
   useEffect(() => {
     if (parent.current === null) return undefined;
-    const language = new Compartment();
     const lineSeparator = new Compartment();
-    const note = isNote(path);
     // Assigned once the view exists, which its listener only needs after the first edit.
     let connection: EditorConnection | undefined;
     const editorView = new EditorView({
@@ -147,14 +155,14 @@ export function CodeEditor({ path, label, content, connect }: CodeEditorProps) {
             if (edited) connection?.edited();
           }),
           indentUnit.of(detectIndentUnit(content)),
-          labelCompartment.of(EditorView.contentAttributes.of({ "aria-label": initialLabel() })),
+          labelCompartment.of(EditorView.contentAttributes.of({ "aria-label": initialPath() })),
           highlightSpecialChars(),
           drawSelection(),
           highlightActiveLine(),
           keymap.of(defaultKeymap),
           syntaxHighlighting(highlightStyle),
           theme,
-          note ? noteExtensions : [codeExtensions, language.of([])],
+          modeCompartment.of(isNote(initialPath()) ? noteMode : codeMode),
         ],
       }),
     });
@@ -174,32 +182,41 @@ export function CodeEditor({ path, label, content, connect }: CodeEditorProps) {
       },
     });
 
-    const fileName = path.slice(path.lastIndexOf("/") + 1);
-    const description = note ? null : LanguageDescription.matchFilename(languages, fileName);
-    let destroyed = false;
-    description
-      ?.load()
-      .then((support) => {
-        if (!destroyed) editorView.dispatch({ effects: language.reconfigure(support) });
-      })
-      // The file stays readable as plain text.
-      .catch(reportError);
     view.current = editorView;
+    languageLoader.current = createLanguageLoader((support) => {
+      editorView.dispatch({ effects: languageCompartment.reconfigure(support) });
+    });
     return () => {
+      languageLoader.current?.cancel();
+      languageLoader.current = undefined;
       view.current = undefined;
-      destroyed = true;
       connection.disconnect();
       editorView.destroy();
     };
-  }, [path, content]);
+  }, [content]);
 
+  // Runs after the view is built too, which is how a code file's language gets loaded the first time.
   useEffect(() => {
-    view.current?.dispatch({
-      effects: labelCompartment.reconfigure(
-        EditorView.contentAttributes.of({ "aria-label": label }),
-      ),
+    const editorView = view.current;
+    if (editorView === undefined) return;
+    const note = isNote(path);
+    const mode = note ? noteMode : codeMode;
+    const fileName = path.slice(path.lastIndexOf("/") + 1);
+    const description = note ? null : LanguageDescription.matchFilename(languages, fileName);
+    editorView.dispatch({
+      effects: [
+        labelCompartment.reconfigure(EditorView.contentAttributes.of({ "aria-label": path })),
+        // Swapping the mode would empty the language compartment, so a rename that keeps it leaves it be.
+        ...(modeCompartment.get(editorView.state) === mode
+          ? []
+          : [modeCompartment.reconfigure(mode)]),
+        // A file with no language known is plain text, which the new mode has already made it unless it was code.
+        ...(!note && description === null ? [languageCompartment.reconfigure([])] : []),
+      ],
     });
-  }, [labelCompartment, label]);
+    // A language that fails to load leaves the file readable as plain text.
+    languageLoader.current?.load(description).catch(reportError);
+  }, [path, content]);
 
   return <div ref={parent} className="h-full" />;
 }

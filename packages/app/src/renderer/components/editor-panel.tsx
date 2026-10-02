@@ -115,5 +115,5 @@ export function EditorPanel({
       },
     };
   }
-  return <CodeEditor path={openedPath} label={path} content={state.content} connect={connect} />;
+  return <CodeEditor path={path} content={state.content} connect={connect} />;
 }
