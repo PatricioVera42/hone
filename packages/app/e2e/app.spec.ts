@@ -555,6 +555,35 @@ test("typing in a note saves it to disk shortly after", async () => {
   }
 });
 
+test("typing { in a code file closes it, Backspace removes the pair and Enter splits it", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("notes.txt", "x\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("{");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("y{");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => readFile(file, "utf8")).toBe("x\ny{\n\n}");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("typing a code fence in a note closes it, and Enter after the language splits it", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "x\n\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("```js");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("1");
+    await expect.poll(() => readFile(file, "utf8")).toBe("x\n\n```js\n1\n```");
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("a note rewritten on disk shows its new content in the editor", async () => {
   const { file, electronApp, editor } = await openFileInEditor("algebra.md", "Groups.\n");
   try {
