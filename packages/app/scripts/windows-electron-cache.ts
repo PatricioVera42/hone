@@ -1,9 +1,10 @@
-import { cpSync, existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 
 /**
  * Copies the Windows Electron in `electronDir` (the `electron` package) to `cacheDir`, unless the cache already holds
- * `electron.exe`. `installElectron` runs `install-electron`, for Windows when given `"win32"` and for the current
+ * `electron.exe`. The copy goes to a sibling folder that is renamed to `cacheDir` once complete, so an interrupted copy
+ * never leaves a `cacheDir` that looks finished. `installElectron` runs `install-electron`, for Windows when given `"win32"` and for the current
  * platform otherwise. The package is left holding the current platform's binary, so end-to-end tests still run.
  */
 export function fillWindowsElectronCache(
@@ -16,7 +17,10 @@ export function fillWindowsElectronCache(
   clearInstall(electronDir);
   installElectron("win32");
   process.stdout.write(`copying Electron to ${cacheDir}\n`);
-  cpSync(path.join(electronDir, "dist"), cacheDir, { recursive: true });
+  const partialDir = `${cacheDir}.partial`;
+  rmSync(partialDir, { recursive: true, force: true });
+  cpSync(path.join(electronDir, "dist"), partialDir, { recursive: true });
+  renameSync(partialDir, cacheDir);
   clearInstall(electronDir);
   installElectron();
 }
