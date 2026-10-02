@@ -119,6 +119,7 @@ export function TerminalPanel({ client, cwd, label, isActive, onExit }: Terminal
         // Stops Chromium's own paste, which would paste a second time.
         event.preventDefault();
         if (copies) {
+          // Ctrl+Shift+C with no selection lands here too: it copies nothing but still never reaches the shell.
           if (opened.hasSelection()) {
             navigator.clipboard.writeText(opened.getSelection()).catch(reportError);
             opened.clearSelection();
