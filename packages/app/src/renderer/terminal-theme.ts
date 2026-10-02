@@ -1,6 +1,19 @@
 import type { ITheme } from "@xterm/xterm";
 
 /**
+ * `color` as `rgba()`, which xterm parses with its alpha. Chromium reports a computed color with transparency as
+ * `color(srgb r g b / a)`, which xterm can't parse without dropping the alpha. Other colors are returned as they are.
+ */
+function toRgba(color: string): string {
+  const match = /^color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)$/.exec(color);
+  if (match === null) return color;
+  const [red, green, blue] = [match[1], match[2], match[3]].map((channel) =>
+    Math.round(Number(channel) * 255),
+  );
+  return `rgba(${red}, ${green}, ${blue}, ${match[4] ?? "1"})`;
+}
+
+/**
  * xterm's theme, from the CSS variables where the terminal is, like the code editors' colors. xterm can't resolve
  * `var()`, so `resolve` turns each color into one it can parse.
  */
@@ -29,5 +42,8 @@ export function computeTerminalTheme(resolve: (color: string) => string): ITheme
     brightMagenta: resolve("var(--terminal-bright-magenta)"),
     brightCyan: resolve("var(--terminal-bright-cyan)"),
     brightWhite: resolve("var(--terminal-bright-white)"),
+    scrollbarSliderBackground: toRgba(resolve("var(--scrollbar-thumb)")),
+    scrollbarSliderHoverBackground: toRgba(resolve("var(--scrollbar-thumb-hover)")),
+    scrollbarSliderActiveBackground: toRgba(resolve("var(--scrollbar-thumb-active)")),
   };
 }

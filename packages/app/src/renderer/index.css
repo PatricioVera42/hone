@@ -148,6 +148,11 @@
   --terminal-bright-magenta: #c7a9ff;
   --terminal-bright-cyan: #a4daff;
   --terminal-bright-white: #c0caf5;
+  /* The scrollbars' sliders, read by the global ::-webkit-scrollbar rules, dockview and terminal-theme.ts. In srgb so
+     that computed, they're a color(srgb ...) that terminal-theme.ts can turn into rgba() for xterm. */
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 35%, transparent);
+  --scrollbar-thumb-active: color-mix(in srgb, var(--foreground) 50%, transparent);
   /* The terminals' font too; terminal-panel.tsx reads it for xterm. */
   --font-code: "CaskaydiaCove Nerd Font Mono", monospace;
 }
@@ -234,12 +239,33 @@
   --dv-paneview-active-outline-color: var(--ring);
   --dv-icon-hover-background-color: var(--accent);
   --dv-drag-over-background-color: color-mix(in oklch, var(--accent) 60%, transparent);
-  --dv-scrollbar-background-color: color-mix(in oklch, var(--foreground) 25%, transparent);
+  --dv-scrollbar-background-color: var(--scrollbar-thumb);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Thin scrollbars, always visible. Elements that hide theirs on purpose (no-scrollbar) override these. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-active);
   }
   body {
     @apply bg-background text-foreground;
