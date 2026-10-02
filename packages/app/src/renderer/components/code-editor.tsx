@@ -19,6 +19,7 @@ import {
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { useEffect, useEffectEvent, useRef } from "react";
+import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
 import type { EditorContent } from "@/open-file.ts";
@@ -80,6 +81,7 @@ const noteExtensions: Extension = [
     },
   }),
   markdown({ base: markdownLanguage, codeLanguages: languages }),
+  noteBracketClosing,
 ];
 
 const codeExtensions: Extension = [
@@ -163,6 +165,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           highlightSpecialChars(),
           drawSelection(),
           highlightActiveLine(),
+          bracketClosing,
           keymap.of(defaultKeymap),
           syntaxHighlighting(highlightStyle),
           theme,
