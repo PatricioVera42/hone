@@ -9,3 +9,5 @@ dist-electron/
 test-results/
 playwright-report/
 .claude/settings.local.json
+# Here and not in .sandcastle/.gitignore: Knip only reads this file, and fails on the agent's worktree.
+.sandcastle/worktrees/
