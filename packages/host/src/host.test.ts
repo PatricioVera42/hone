@@ -6,6 +6,7 @@ import { setTimeout } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   connectToHost,
+  readTree,
   spawnHost,
   startTestHost,
   type SpawnedHost,
@@ -110,6 +111,8 @@ describe("workshop.open", () => {
   });
 });
 
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
+
 describe("workshop.create", () => {
   it("creates <name>/.hone/generator and opens it", async () => {
     host = await startTestHost();
@@ -120,6 +123,33 @@ describe("workshop.create", () => {
     expect(result).toStrictEqual({ root, name: "my-workshop", onWindowsDisk: false });
     const stats = await fs.stat(path.join(root, ".hone", "generator"));
     expect(stats.isDirectory()).toBe(true);
+  });
+
+  it("seeds the generator with its permission files and the default library", async () => {
+    host = await startTestHost();
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), "hone-parent-"));
+
+    await host.call("workshop.create", { parent, name: "seeded" });
+    const root = path.join(parent, "seeded");
+
+    const generator = await readTree(path.join(root, ".hone", "generator"));
+    const permissionFiles = {
+      claude: generator.get(path.join(".claude", "settings.json")),
+      opencode: generator.get("opencode.json"),
+    };
+    generator.delete(path.join(".claude", "settings.json"));
+    generator.delete("opencode.json");
+    expect(generator).toStrictEqual(await readTree(path.join(repoRoot, "generator")));
+    expect(JSON.parse(permissionFiles.claude ?? "null")).toStrictEqual({
+      permissions: { additionalDirectories: [root] },
+    });
+    expect(JSON.parse(permissionFiles.opencode ?? "null")).toStrictEqual({
+      $schema: "https://opencode.ai/config.json",
+      permission: { external_directory: { [`${root}/**`]: "allow" } },
+    });
+    expect(await readTree(path.join(root, "library"))).toStrictEqual(
+      await readTree(path.join(repoRoot, "library-default")),
+    );
   });
 
   it("fails with NestedWorkshop inside another workshop, creating nothing", async () => {
@@ -276,6 +306,7 @@ describe("files.list", () => {
 
     await expect(host.call("files.list", { path: "" })).resolves.toStrictEqual([
       { name: ".hone", kind: "folder" },
+      { name: "library", kind: "folder" },
     ]);
   });
 

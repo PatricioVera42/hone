@@ -16,7 +16,7 @@ export const workshopOpenMethod: MethodDefinition<{ path: string }, WorkshopInfo
   result: workshopInfoSchema,
 };
 
-/** Creates `<parent>/<name>/.hone/generator/` and opens it. Fails with `InvalidName`, `NestedWorkshop` or `AlreadyExists`. */
+/** Creates `<parent>/<name>/`, seeds `.hone/generator/` (with its permission files) and `library/` (the default library) inside it, and opens it. Fails with `InvalidName`, `NestedWorkshop` or `AlreadyExists`. */
 export const workshopCreateMethod: MethodDefinition<
   { parent: string; name: string },
   WorkshopInfo

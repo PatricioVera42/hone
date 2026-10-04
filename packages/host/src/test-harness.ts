@@ -1,6 +1,7 @@
 import { hostReadyLine } from "@hone/protocol";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { WebSocket, type RawData } from "ws";
@@ -149,4 +150,18 @@ export async function startTestHost(env?: NodeJS.ProcessEnv): Promise<TestHost> 
       await new Promise<void>((resolve) => child.once("exit", () => resolve()));
     },
   };
+}
+
+/** Every file under `directory` as a map from its relative path to its contents, for comparing folders. */
+export async function readTree(directory: string): Promise<Map<string, string>> {
+  const entries = await fs.readdir(directory, { recursive: true, withFileTypes: true });
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry): Promise<[string, string]> => {
+        const absolute = path.join(entry.parentPath, entry.name);
+        return [path.relative(directory, absolute), await fs.readFile(absolute, "utf8")];
+      }),
+  );
+  return new Map(files);
 }
