@@ -1,6 +1,7 @@
 import { AppError, validateName, type WorkshopInfo } from "@hone/protocol";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { seedGenerator, seedLibrary } from "./seed-workshop.ts";
 
 const generatorMarker = path.join(".hone", "generator");
 
@@ -22,8 +23,13 @@ async function pathExists(candidate: string): Promise<boolean> {
   }
 }
 
+/** A folder is a workshop root when it has `.hone/generator/` directly inside it. */
+export function isWorkshopRoot(candidate: string): Promise<boolean> {
+  return isDirectory(path.join(candidate, generatorMarker));
+}
+
 async function findWorkshopRoot(current: string): Promise<string | undefined> {
-  if (await isDirectory(path.join(current, generatorMarker))) return current;
+  if (await isWorkshopRoot(current)) return current;
   const parent = path.dirname(current);
   if (parent === current) return undefined;
   return findWorkshopRoot(parent);
@@ -62,6 +68,7 @@ export async function createWorkshop(absoluteParent: string, name: string): Prom
     throw new AppError("AlreadyExists", `${root} already exists`);
   }
 
-  await fs.mkdir(path.join(root, generatorMarker), { recursive: true });
+  await seedGenerator(root);
+  await seedLibrary(root);
   return toWorkshopInfo(root);
 }

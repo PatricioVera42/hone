@@ -12,6 +12,7 @@
     "knip": "knip",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test",
+    "sync-workshop": "node packages/host/src/sync-workshop.ts",
     "sandcastle": "node .sandcastle/main.ts",
     "sandcastle:image": "sandcastle docker build-image"
   },
