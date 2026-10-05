@@ -13,5 +13,5 @@ knowledge_base:
     filePatterns:
       - AGENTS.md
       - CODING_STANDARDS.md
-      - CONTEXT.md
+      - GLOSSARY.md
       - "docs/adr/*.md"

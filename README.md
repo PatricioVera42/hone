@@ -68,7 +68,7 @@ The agent gets no GitHub credentials; the harness reads the issue and opens the 
 
 ## Docs
 
-- [Glossary](CONTEXT.md)
+- [Glossary](GLOSSARY.md)
 - [Architecture decisions](docs/adr/)
 - [Stack](docs/stack.md)
 - [Roadmap](docs/roadmap.md)
