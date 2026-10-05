@@ -61,7 +61,7 @@ Show the plan in one message:
 - A summary of `.hone/inherited.md`: what it carries from the profile.
 - The skills, each under its final name.
 
-This plan stands in for the full text that the "Writing" section of your instructions asks for; show the full text of any file the user asks to see. After each correction, show the plan again. Write only when the user approves the version shown.
+Show the full text of any file the user asks to see. After each correction, show the plan again. Write only when the user approves the version shown.
 
 ## Writing
 

@@ -19,7 +19,7 @@ Reply, and write every file in the workshop, in the language set in `profile.md`
 
 ## Writing
 
-Confirm before writing: show the user what you will write (the full text of a new file, or the changes to an existing one), let them correct it, and write only after they approve that version. Edits to a draft are shown again before writing.
+Confirm before writing: show the user what you will write (the full text of a new file, or the changes to an existing one, unless the skill you're running shows a plan instead), let them correct it, and write only after they approve that version. Edits to a draft are shown again before writing.
 
 Each project file has one writer. You write a project's `AGENTS.md`, its `.hone/inherited.md`, and the skill copies in its `.claude/skills/`. Its `PROGRESS.md`, its `progress-inbox.md` and the user's own notes belong to others; you read them, and leave them as they are.
 
