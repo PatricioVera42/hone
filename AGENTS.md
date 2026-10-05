@@ -1,6 +1,6 @@
 # Hone
 
-Desktop app for Markdown notes and projects alongside AI agents. See README.md, CONTEXT.md (glossary) and docs/ (ADRs, stack, roadmap, workflow).
+Desktop app for Markdown notes and projects alongside AI agents. See README.md, GLOSSARY.md (glossary) and docs/ (ADRs, stack, roadmap, workflow).
 
 ## Code
 
@@ -22,4 +22,4 @@ The five default roles, each label named after its role: needs-triage, needs-inf
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

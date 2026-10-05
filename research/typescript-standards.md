@@ -175,7 +175,7 @@ The rest of the list, such as validating the IPC sender (item 17) and limiting n
 
 These need to be written down, because no rule checks them. They are kept short on purpose: a long document stops being read.
 
-- **Names say what things are, in the domain's words.** Use the terms in `CONTEXT.md` (workshop, project, cascade...) and avoid the ones it lists as "avoid". Google's guide: "do not use abbreviations that are ambiguous or unfamiliar to readers outside your project" ([Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)).
+- **Names say what things are, in the domain's words.** Use the terms in `GLOSSARY.md` (workshop, project, cascade...) and avoid the ones it lists as "avoid". Google's guide: "do not use abbreviations that are ambiguous or unfamiliar to readers outside your project" ([Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)).
 - **Comments explain why, not what.** Use JSDoc for "comments a user of the code should read" and line comments for implementation notes (same source).
 - **`unknown`, never `any`, for values of unknown shape**, then narrow them with a schema or a type guard. The linter catches `any` written by hand, but not the choice between narrowing and casting.
 - **Throw only `Error` subclasses**, and catch only where the error can be handled or turned into a JSON-RPC error. Don't catch just to log and rethrow. `typescript/only-throw-error` covers the first half.
@@ -279,7 +279,7 @@ For the repo root. The code-review skill reads it and skips whatever tooling alr
 
 Everything a tool can check is enforced by `pnpm check` (tsconfig, the Oxlint and Oxfmt configs, knip, Vitest). Those configs are the source of truth for it. This file holds only what they can't check.
 
-- Name things in the domain's words from CONTEXT.md, and avoid the terms it lists as "avoid". No ambiguous abbreviations.
+- Name things in the domain's words from GLOSSARY.md, and avoid the terms it lists as "avoid". No ambiguous abbreviations.
 - Comments explain why, not what. JSDoc for what callers need to know; line comments for implementation notes.
 - Values of unknown shape are `unknown` and get narrowed with a schema or a type guard, never cast.
 - Throw only `Error` subclasses. Catch only where you can handle the error or turn it into a JSON-RPC error; don't catch just to log and rethrow.
