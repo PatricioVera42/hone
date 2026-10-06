@@ -65,3 +65,7 @@ A close that skips confirmation and leaves the proposal in the progress inbox fo
 **Progress inbox**:
 Unconfirmed progress drafts left by a quick close. The agent offers to review them at the start of the next session.
 _Avoid_: pending, temp
+
+**Roadmap**:
+A study project's optional plan: the course's topics in an order where each builds on the ones before, following the course's own program when the material has one. It holds only the plan; where the user stands is in the progress. Not to be confused with Hone's own product roadmap.
+_Avoid_: syllabus, study plan

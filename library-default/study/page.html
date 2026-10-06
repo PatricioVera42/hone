@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TITLE</title>
+    <style>
+      :root {
+        --bg: #fffff8;
+        --fg: #1d1d1b;
+        --muted: #6b6b66;
+        --rule: #d9d6c9;
+        --accent: #a3361f;
+        --code-bg: #f3f1e7;
+        --ok: #2f6b3a;
+        --ok-bg: #e5f0e1;
+        --bad: #9b2c20;
+        --bad-bg: #f6e3de;
+        --measure: 38rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1a17;
+          --fg: #e9e6da;
+          --muted: #a09d92;
+          --rule: #3a3833;
+          --accent: #e08a6d;
+          --code-bg: #26241f;
+          --ok: #9fd3a7;
+          --ok-bg: #22321f;
+          --bad: #f0a595;
+          --bad-bg: #3a2420;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        font-size: 18px;
+      }
+      body {
+        margin: 0;
+        padding: 3rem 1rem 5rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        line-height: 1.55;
+      }
+      main {
+        max-width: var(--measure);
+        margin: 0 auto;
+      }
+      h1 {
+        font-weight: 400;
+        font-size: 2rem;
+        line-height: 1.2;
+        margin: 0 0 0.3rem;
+      }
+      h2 {
+        font-weight: 400;
+        font-style: italic;
+        font-size: 1.35rem;
+        margin: 2.6rem 0 0.6rem;
+      }
+      h3 {
+        font-weight: 600;
+        font-size: 1rem;
+        margin: 1.6rem 0 0.4rem;
+      }
+      .kicker {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.6rem;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-style: italic;
+        margin: 0 0 2rem;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 2px;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--rule);
+        margin: 2.5rem 0;
+      }
+      code,
+      pre {
+        font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+        font-size: 0.82em;
+      }
+      code {
+        background: var(--code-bg);
+        padding: 0.08em 0.3em;
+        border-radius: 3px;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 0.9rem 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        line-height: 1.45;
+        border-left: 3px solid var(--rule);
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: 1em;
+      }
+      .aside {
+        font-size: 0.82rem;
+        color: var(--muted);
+        line-height: 1.4;
+        border-left: 2px solid var(--rule);
+        padding-left: 0.8rem;
+        margin: 1rem 0;
+      }
+      @media (min-width: 1100px) {
+        .aside {
+          float: right;
+          clear: right;
+          width: 15rem;
+          margin: 0 -18rem 1rem 0;
+          border: 0;
+          padding: 0;
+        }
+      }
+      .box {
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        padding: 1rem 1.2rem;
+        margin: 1.5rem 0;
+      }
+      .box > :first-child {
+        margin-top: 0;
+      }
+      .box > :last-child {
+        margin-bottom: 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+        margin: 1rem 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.45rem 0.6rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      th {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .quiz {
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        padding: 1rem 1.2rem;
+        margin: 1.5rem 0;
+      }
+      .quiz .q {
+        margin-top: 0;
+      }
+      .quiz button,
+      .reveal button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        margin: 0.4rem 0;
+        padding: 0.55rem 0.8rem;
+        font: inherit;
+        font-size: 0.92rem;
+        color: var(--fg);
+        background: transparent;
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .quiz button:hover:not(:disabled),
+      .reveal button:hover {
+        border-color: var(--accent);
+      }
+      .quiz button:disabled {
+        cursor: default;
+      }
+      .quiz button.chosen-ok {
+        background: var(--ok-bg);
+        border-color: var(--ok);
+        color: var(--ok);
+      }
+      .quiz button.chosen-bad {
+        background: var(--bad-bg);
+        border-color: var(--bad);
+        color: var(--bad);
+      }
+      .quiz .explain {
+        font-size: 0.9rem;
+        margin-top: 0.8rem;
+        padding-top: 0.8rem;
+        border-top: 1px dashed var(--rule);
+      }
+      .reveal button {
+        width: auto;
+        display: inline-block;
+        color: var(--accent);
+      }
+      #results {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.85rem;
+      }
+      @media print {
+        body {
+          background: #fff;
+          color: #000;
+          padding: 0;
+          font-size: 11pt;
+        }
+        .quiz button,
+        .reveal button {
+          display: none;
+        }
+        .aside {
+          float: none;
+          width: auto;
+          margin: 0.5rem 0;
+        }
+        a {
+          color: #000;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <!--
+  Markup:
+  - Multiple choice: <div class="quiz" data-answer="b"><p class="q">…</p><button data-option="a">…</button>…<div class="explain" hidden>…</div></div>
+  - Recall: <div class="reveal"><button>…</button><div class="hidden-answer" hidden>…</div></div>
+  - Margin note: <p class="aside">…</p>; framed note: <div class="box">…</div>
+  - Results line, last in <main> when the page has quizzes: <p id="results" class="box" hidden></p>
+-->
+    </main>
+    <script>
+      const missed = new Set();
+      const quizzes = document.querySelectorAll(".quiz");
+      let answered = 0;
+      quizzes.forEach((quiz, index) => {
+        const buttons = quiz.querySelectorAll("button[data-option]");
+        buttons.forEach((button) => {
+          button.addEventListener("click", () => {
+            const correct = button.dataset.option === quiz.dataset.answer;
+            buttons.forEach((b) => b.classList.remove("chosen-bad"));
+            button.classList.add(correct ? "chosen-ok" : "chosen-bad");
+            if (!correct) missed.add(index + 1);
+            if (!correct) return;
+            buttons.forEach((b) => (b.disabled = true));
+            quiz.querySelector(".explain")?.removeAttribute("hidden");
+            answered += 1;
+            const results = document.getElementById("results");
+            if (results === null || answered < quizzes.length) return;
+            const list = [...missed].sort((a, b) => a - b).join(", ");
+            results.textContent =
+              `${document.title}: ${quizzes.length - missed.size}/${quizzes.length}` +
+              (list === "" ? "" : ` · ✗ ${list}`);
+            results.hidden = false;
+          });
+        });
+      });
+      document.querySelectorAll(".reveal").forEach((reveal) => {
+        const button = reveal.querySelector("button");
+        button.addEventListener("click", () => {
+          reveal.querySelector(".hidden-answer").hidden = false;
+          button.remove();
+        });
+      });
+    </script>
+  </body>
+</html>

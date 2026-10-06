@@ -33,7 +33,7 @@ Record what happened in the project's progress, writing only what the user confi
 
 ## Closing a session
 
-1. Build the proposal from this session: the conversation and the files written in it. A new "Current state", starting from the existing one and updated with what changed, and a session entry dated today (run `date` if you don't have it). Record what happened, in short bullets; leave out a line with nothing to say.
+1. Build the proposal from this session: the conversation and the files written in it. A new "Current state", starting from the existing one and updated with what changed, and a session entry dated today (run `date` if you don't have it). Record what happened, in short bullets; leave out a line with nothing to say. Name a file by its path instead of copying its content: an exercise in `practice/` is its path and a few words on what it practices.
 2. Confirm before writing: show both parts exactly as they'll be written and ask the user to approve or correct them. After each correction, show them again. Write only when the user approves the version shown.
 3. If during the session you noticed something about how the user learns or works that `.hone/inherited.md` doesn't say, write it nowhere. After writing, suggest they tell the generator, and give them the sentence to bring.
 
