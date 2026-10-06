@@ -76,4 +76,4 @@ The agent gets no GitHub credentials; the harness reads the issue and opens the 
 
 ## License
 
-[MIT](LICENSE), except the bundled CaskaydiaCove Nerd Font, which is under the SIL Open Font License 1.1 ([its license](packages/app/src/renderer/fonts/caskaydia-cove/LICENSE)).
+[MIT](LICENSE), except the bundled CaskaydiaCove Nerd Font, which is under the SIL Open Font License 1.1 ([its license](packages/app/src/renderer/fonts/caskaydia-cove/LICENSE)). The `study` skill in `library-default/study/` is adapted from Matt Pocock's [`teach`](https://github.com/mattpocock/skills) skill, also MIT, and carries its notice ([its license](library-default/study/LICENSE)).
