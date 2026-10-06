@@ -5,11 +5,15 @@ Hone is a note-taking desktop app for Markdown notes and projects, for study or 
 > [!WARNING]
 > Hone is in early development. There are no releases yet: you build it from source, and it only runs on Windows with WSL2 for now. Expect bugs and breaking changes.
 
+![A study note open in Hone, with the workshop's file tree on the left and Claude Code answering a question in the terminal below the editor](docs/screenshots/notes.png)
+
 ## How it works
 
 You open a workshop: a folder that holds your notes, your projects and a profile describing what you know and how you like to learn. From the workshop's generator you run `/create` and describe a new project, and the generator writes an agent for it (instructions and skills picked from your library) tailored to your profile. Inside the project, you work with that agent, and at the end of each session `/close` records what you learned and did, after you confirm it. The next session, or a different model, picks up from there. When your profile changes or an agent doesn't fit anymore, you ask the generator to refine it.
 
 Your notes are plain Markdown files in your workshop, so they stay readable in any other editor.
+
+![A TypeScript file from a code project open in Hone, next to the study project in the same workshop](docs/screenshots/code.png)
 
 ## Status
 
