@@ -7,6 +7,7 @@ Several agents touch a project (the generator, the parent project's agent, the p
 | `AGENTS.md` | The generator only (on create and `/refine`) |
 | `PROGRESS.md` | The project's agent, after the user confirms (`/close`) |
 | `progress-inbox.md` | The project's agent (`/quick-close`) |
+| `ROADMAP.md` | The project's agent, after the user confirms (`study`) |
 | `.hone/inherited.md` | The generator or the parent project (cascade) |
 | `.claude/skills/`, `scripts/` | Copied by the generator from the library; the user may edit them |
 
