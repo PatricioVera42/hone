@@ -37,6 +37,7 @@ import {
   SidebarMenuSkeleton,
   SidebarMenuSub,
 } from "@/components/ui/sidebar.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { applyFileChange } from "@/apply-file-change.ts";
 import { entryNameError, noteFileName } from "@/entry-name.ts";
 import { renamedPath } from "@/entry-path.ts";
@@ -232,7 +233,14 @@ function RenameRow({ folder, entry, siblings, onRenamed }: RenameRowProps) {
  * Lists one folder when it mounts, so a folder's children are only fetched once it's first expanded, and keeps it
  * up to date with `files.changed` from then on.
  */
-function FolderContents({ path }: { readonly path: string }) {
+function FolderContents({
+  path,
+  onUnavailable,
+}: {
+  readonly path: string;
+  /** Called with the error's message when the folder can't be listed. The workshop root has no one to tell. */
+  readonly onUnavailable?: (message: string) => void;
+}) {
   const { client, onOpenFile, edit } = useTree();
   const [entries, setEntries] = useState<readonly FileEntry[]>();
 
@@ -256,8 +264,9 @@ function FolderContents({ path }: { readonly path: string }) {
         // A cancelled call was replaced by a newer one (StrictMode runs effects twice), which reports its own error.
         if (cancelled) return;
         reportError(error);
-        // Shows the folder as empty instead of loading forever.
+        // Shows the folder as empty instead of loading forever, until its parent hides it as unavailable.
         setEntries([]);
+        onUnavailable?.(error instanceof Error ? error.message : String(error));
       });
     return () => {
       cancelled = true;
@@ -353,6 +362,32 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
   const [loaded, setLoaded] = useState(expanded);
   // Expanded from elsewhere too, such as by New note on it.
   if (expanded && !loaded) setLoaded(true);
+  // Set once listing the folder fails, which makes it unavailable until the tree is rebuilt, so the user isn't told
+  // again by every click and nothing retries.
+  const [listingError, setListingError] = useState<string>();
+
+  if (listingError !== undefined && renameRow === undefined) {
+    return (
+      <Tooltip>
+        {/* On the row rather than the button, whose disabled style stops it from receiving the pointer. */}
+        <TooltipTrigger render={<SidebarMenuItem />}>
+          {/* The tooltip isn't tied to the button, so a screen reader gets the error from the description. */}
+          <SidebarMenuButton
+            aria-disabled
+            aria-description={listingError}
+            data-entry-path={path}
+            data-entry-kind="folder"
+          >
+            {/* Lines the folder up with the others, whose icons follow a chevron. */}
+            <span aria-hidden className="size-4 shrink-0" />
+            <HugeiconsIcon icon={Folder01Icon} strokeWidth={2} />
+            <span>{name}</span>
+          </SidebarMenuButton>
+        </TooltipTrigger>
+        <TooltipContent side="right">{listingError}</TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <SidebarMenuItem>
@@ -379,9 +414,9 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
           <span>{name}</span>
         </SidebarMenuButton>
       )}
-      {loaded && (
+      {loaded && listingError === undefined && (
         <SidebarMenuSub hidden={!expanded}>
-          <FolderContents path={path} />
+          <FolderContents path={path} onUnavailable={setListingError} />
         </SidebarMenuSub>
       )}
     </SidebarMenuItem>
