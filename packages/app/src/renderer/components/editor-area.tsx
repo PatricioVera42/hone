@@ -51,8 +51,10 @@ async function closeTab(tabCloseGuards: TabCloseGuards, panel: DockviewPanelApi)
 
 interface EditorAreaContextValue {
   readonly client: HostClient;
+  readonly workshopName: string;
   readonly openFiles: OpenFiles;
   readonly tabCloseGuards: TabCloseGuards;
+  readonly openFile: (path: string) => void;
 }
 
 // Panels are built by dockview from a component name, so what they share reaches them through context, not params.
@@ -65,8 +67,10 @@ function EditorPanelFromLayout({ api, params }: IDockviewPanelProps<EditorPanelP
   return (
     <EditorPanel
       client={context.client}
+      workshopName={context.workshopName}
       openFiles={context.openFiles}
       path={params.path}
+      onOpenFile={context.openFile}
       onDeleted={() => api.close()}
       registerTabCloseGuard={(guard) => {
         context.tabCloseGuards.set(api.id, guard);
@@ -110,7 +114,7 @@ function fileName(path: string): string {
 }
 
 /** Opens a file in the active group, or focuses its tab if it's already open anywhere. */
-export function openEditorTab(editors: DockviewApi, path: string): void {
+function openEditorTab(editors: DockviewApi, path: string): void {
   const existing = editors.panels.find((panel) => panelPath(panel) === path);
   if (existing !== undefined) {
     existing.api.setActive();
@@ -201,6 +205,8 @@ type LayoutLoad =
 /** The editor area, once ready, for acting on its tabs from outside. */
 export interface Editors {
   readonly api: DockviewApi;
+  /** Opens the file at `path` in a tab, or focuses its tab if it's already open anywhere. */
+  openFile(path: string): void;
   /** Opens a terminal in the folder at `cwd`, titled `title`, where Ctrl+` would open one. */
   openTerminal(cwd: string, title: string): void;
 }
@@ -234,12 +240,20 @@ export function EditorArea({
   const [layoutLoad, setLayoutLoad] = useState<LayoutLoad>({ status: "loading" });
   const [editors, setEditors] = useState<DockviewApi>();
   const [tabCloseGuards] = useState<TabCloseGuards>(() => new Map());
-  const context = useMemo(
-    () => ({ client, openFiles, tabCloseGuards }),
-    [client, openFiles, tabCloseGuards],
-  );
   // Set in handleReady, ahead of the render that sets `editors`, so a shortcut pressed in between still finds them.
   const readyEditors = useRef<DockviewApi>(undefined);
+  const context = useMemo(
+    () => ({
+      client,
+      workshopName,
+      openFiles,
+      tabCloseGuards,
+      openFile: (path: string) => {
+        if (readyEditors.current !== undefined) openEditorTab(readyEditors.current, path);
+      },
+    }),
+    [client, workshopName, openFiles, tabCloseGuards],
+  );
   const lastTerminal = useRef<IDockviewPanel>(undefined);
 
   useEffect(() => {
@@ -318,6 +332,9 @@ export function EditorArea({
     setEditors(api);
     onReady({
       api,
+      openFile: (path) => {
+        openEditorTab(api, path);
+      },
       openTerminal: (cwd, title) => {
         openTerminalTab(api, cwd, title, lastTerminal.current?.group);
       },

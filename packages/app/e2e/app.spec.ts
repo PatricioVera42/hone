@@ -1097,6 +1097,125 @@ test("deleting a folder says how many files it holds, and confirming removes it 
   }
 });
 
+/** Launches the app on a workshop with `notes/math/algebra.md` open in a tab, through the tree. */
+async function openNestedNote() {
+  const opened = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "notes", "math"), { recursive: true });
+    await mkdir(path.join(workshop, "notes", "archive"));
+    await writeFile(path.join(workshop, "notes", "index.md"), "Index.\n");
+    await writeFile(path.join(workshop, "notes", "math", "algebra.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "notes", "math", "groups.md"), "Rings.\n");
+    await writeFile(path.join(workshop, "top.md"), "Top.\n");
+  });
+  const { page, tree } = opened;
+  await tree.getByRole("button", { name: "notes" }).click();
+  await tree.getByRole("button", { name: "math" }).click();
+  await tree.getByRole("button", { name: "algebra.md" }).click();
+  const breadcrumbs = page.getByRole("navigation", { name: "breadcrumb" });
+  await expect(breadcrumbs).toBeVisible();
+  return { ...opened, breadcrumbs };
+}
+
+test("an open file's breadcrumbs show the workshop, its folders and the file's name", async () => {
+  const { electronApp, breadcrumbs } = await openNestedNote();
+  try {
+    await expect(breadcrumbs.getByRole("listitem")).toHaveText([
+      "studies",
+      "notes",
+      "math",
+      "algebra.md",
+    ]);
+    await expect(breadcrumbs.getByRole("button")).toHaveText(["studies", "notes", "math"]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a folder segment's menu lists its entries, folders first, and opens files in tabs or focuses them", async () => {
+  const { electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveText(["archive", "math", "index.md"]);
+
+    await menu.getByRole("menuitem", { name: "math" }).click();
+    const submenu = page.getByRole("menu").last();
+    await expect(submenu.getByRole("menuitem")).toHaveText(["algebra.md", "groups.md"]);
+    await submenu.getByRole("menuitem", { name: "groups.md" }).click();
+    await expect(page.getByRole("tab", { name: "groups.md" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "notes/math/groups.md" })).toContainText(
+      "Rings.",
+    );
+
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await page.getByRole("menuitem", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("the workshop segment's menu lists the workshop root's entries", async () => {
+  const { electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "studies" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      ".hone",
+      "notes",
+      "top.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("renaming a folder above the open file from the tree renames its breadcrumb segment", async () => {
+  const { electronApp, page, tree, breadcrumbs } = await openNestedNote();
+  try {
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    const name = tree.getByRole("textbox", { name: "Name" });
+    await name.fill("maths");
+    await name.press("Enter");
+
+    await expect(breadcrumbs.getByRole("listitem")).toHaveText([
+      "studies",
+      "notes",
+      "maths",
+      "algebra.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a file created on disk after the editor opened shows up the next time its folder's menu opens", async () => {
+  const { root, electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      "algebra.md",
+      "groups.md",
+    ]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
+
+    await writeFile(path.join(root, "notes", "math", "fields.md"), "Fields.\n");
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      "algebra.md",
+      "fields.md",
+      "groups.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
 /**
  * The rows of the terminals titled `title`, read through xterm's accessibility tree, which exists once xterm has
  * opened: from then on, what's typed reaches the shell. A terminal hidden behind another tab has none.
