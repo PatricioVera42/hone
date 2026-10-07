@@ -21,7 +21,7 @@ Hone is built in stages, each one usable on its own ([roadmap](docs/roadmap.md))
 
 **Stage 1, the skeleton, is done.** You create or open a workshop, browse it in a file tree, and create, rename and delete notes, files and folders. Notes and code open in editor tabs with autosave, and shells run in terminal panels next to them. When an agent in a terminal writes a file, the tree and any open editor show the change right away. Editors and terminals live in a layout you can rearrange, and it comes back on the next launch.
 
-**Stage 2, the agents, is in progress** ([spec](https://github.com/PatricioVera42/hone/issues/87)). A new workshop already comes with the generator and `/onboard`, which interviews you and writes your profile. Next are `/create`, the `study` skill, `/close` and `/refine`: the basic loop for one study project.
+**Stage 2, the agents, is in progress** ([spec](https://github.com/PatricioVera42/hone/issues/87)). The basic loop for one study project is written: a new workshop comes with the generator (`/onboard`, `/create`, `/refine`) and a library with the `study`, `close` and `quick-close` skills. Next is using it on a real course.
 
 ## Getting started
 
