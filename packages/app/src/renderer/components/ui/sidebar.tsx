@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { dragSidebarEdge, minSidebarWidth } from "@/sidebar-drag.ts";
 
 // Lets `style` set CSS custom properties such as `--sidebar-width` without a type assertion.
 declare module "react" {
@@ -32,6 +33,12 @@ type SidebarContextProps = {
   open: boolean;
   setOpen: (open: boolean) => void;
   toggleSidebar: () => void;
+  /** Whether the user is dragging the sidebar's edge, which turns off the sidebar's slide animation. */
+  resizing: boolean;
+  startResizing: () => void;
+  /** Sizes or collapses the sidebar for a pointer at `pointerX`, measured from the window's left edge. */
+  resizeTo: (pointerX: number) => void;
+  stopResizing: () => void;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -47,6 +54,8 @@ function useSidebar() {
 
 function SidebarProvider({
   defaultOpen = true,
+  defaultWidth,
+  onWidthChange,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -55,6 +64,10 @@ function SidebarProvider({
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean;
+  /** The sidebar's width in pixels. Without one, it's `--sidebar-width`'s default. */
+  defaultWidth?: number | undefined;
+  /** Called with the new width when a drag of the sidebar's edge ends on one. */
+  onWidthChange?: (width: number) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -95,6 +108,38 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleSidebar]);
 
+  const [width, setWidth] = React.useState(defaultWidth);
+  const [resizing, setResizing] = React.useState(false);
+  // In a ref because pointer events arrive faster than renders, and the last one decides how the drag ends.
+  const drag = React.useRef({ startWidth: defaultWidth, width: defaultWidth, collapsed: false });
+
+  const startResizing = React.useCallback(() => {
+    drag.current = { startWidth: width, width, collapsed: false };
+    setResizing(true);
+  }, [width]);
+
+  const resizeTo = React.useCallback(
+    (pointerX: number) => {
+      const result = dragSidebarEdge(pointerX, window.innerWidth);
+      if (result.collapsed !== drag.current.collapsed) setOpen(!result.collapsed);
+      drag.current.collapsed = result.collapsed;
+      if (!result.collapsed) {
+        drag.current.width = result.width;
+        setWidth(result.width);
+      }
+    },
+    [setOpen],
+  );
+
+  const stopResizing = React.useCallback(() => {
+    setResizing(false);
+    const { startWidth, width: draggedWidth, collapsed } = drag.current;
+    // A drag that collapses the sidebar keeps the width it had, for when it's opened again.
+    if (collapsed) setWidth(startWidth);
+    else if (draggedWidth !== undefined && draggedWidth !== startWidth)
+      onWidthChange?.(draggedWidth);
+  }, [onWidthChange]);
+
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed";
@@ -105,8 +150,12 @@ function SidebarProvider({
       open,
       setOpen,
       toggleSidebar,
+      resizing,
+      startResizing,
+      resizeTo,
+      stopResizing,
     }),
-    [state, open, setOpen, toggleSidebar],
+    [state, open, setOpen, toggleSidebar, resizing, startResizing, resizeTo, stopResizing],
   );
 
   return (
@@ -114,7 +163,9 @@ function SidebarProvider({
       <div
         data-slot="sidebar-wrapper"
         style={{
-          "--sidebar-width": SIDEBAR_WIDTH,
+          // At least the minimum and at most half the window, so a narrower window shows less of the stored width
+          // without changing it.
+          "--sidebar-width": `clamp(${minSidebarWidth}px, ${width === undefined ? SIDEBAR_WIDTH : `${width}px`}, 50vw)`,
           "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
           ...style,
         }}
@@ -142,7 +193,7 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { state } = useSidebar();
+  const { state, resizing } = useSidebar();
 
   if (collapsible === "none") {
     return (
@@ -163,6 +214,7 @@ function Sidebar({
     <div
       className="group peer block text-sidebar-foreground"
       data-state={state}
+      data-resizing={resizing}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
@@ -172,7 +224,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear group-data-[resizing=true]:transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -184,7 +236,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+          "fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear group-data-[resizing=true]:transition-none data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -200,8 +252,46 @@ function Sidebar({
         >
           {children}
         </div>
+        <SidebarResizeHandle />
       </div>
     </div>
+  );
+}
+
+/** The sidebar's right edge, which the user drags to resize it. */
+function SidebarResizeHandle() {
+  const { startResizing, resizeTo, stopResizing } = useSidebar();
+  const dragging = React.useRef(false);
+
+  // Both on release and on a lost capture, whichever comes first, so the drag ends once.
+  function endDrag() {
+    if (!dragging.current) return;
+    dragging.current = false;
+    stopResizing();
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      data-slot="sidebar-resize-handle"
+      className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none transition-colors hover:bg-sidebar-border group-data-[state=collapsed]:pointer-events-none"
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        // Keeps the drag from selecting text or moving focus.
+        event.preventDefault();
+        // Capturing keeps the drag going over the editor area and past the window's edge.
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragging.current = true;
+        startResizing();
+      }}
+      onPointerMove={(event) => {
+        if (dragging.current) resizeTo(event.clientX);
+      }}
+      onPointerUp={endDrag}
+      onLostPointerCapture={endDrag}
+    />
   );
 }
 

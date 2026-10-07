@@ -7,6 +7,8 @@ const appStateSchema = z.looseObject({
   lastWorkshop: z.string().optional(),
   /** Each workshop's editor area layout, by workshop root. The renderer validates it when it loads one. */
   layouts: z.record(z.string(), z.unknown()).optional(),
+  /** In pixels. A value that isn't a positive number reads as unset, without discarding the rest of the file. */
+  sidebarWidth: z.number().positive().optional().catch(undefined),
 });
 
 type AppState = z.infer<typeof appStateSchema>;
@@ -41,6 +43,15 @@ export class AppStateFile {
 
   setLayout(root: string, layout: unknown): Promise<void> {
     return this.update((state) => ({ ...state, layouts: { ...state.layouts, [root]: layout } }));
+  }
+
+  /** The sidebar's width in pixels, if the user ever resized it. */
+  async getSidebarWidth(): Promise<number | undefined> {
+    return (await this.inTurn(() => this.read())).sidebarWidth;
+  }
+
+  setSidebarWidth(width: number): Promise<void> {
+    return this.update((state) => ({ ...state, sidebarWidth: width }));
   }
 
   private update(change: (state: AppState) => AppState): Promise<void> {

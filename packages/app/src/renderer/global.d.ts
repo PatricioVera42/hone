@@ -8,6 +8,9 @@ interface Window {
     /** The root of the workshop opened last, kept in Electron's `userData`. */
     getLastWorkshop(): Promise<string | undefined>;
     setLastWorkshop(root: string): Promise<void>;
+    /** The sidebar's width in pixels, kept in Electron's `userData`. `undefined` if the user never resized it. */
+    getSidebarWidth(): Promise<number | undefined>;
+    setSidebarWidth(width: number): Promise<void>;
     /** The layout last saved for the workshop at `root`, kept in Electron's `userData`. Unvalidated. */
     loadLayout(root: string): Promise<unknown>;
     saveLayout(root: string, layout: unknown): Promise<void>;

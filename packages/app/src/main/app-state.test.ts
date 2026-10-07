@@ -66,4 +66,32 @@ describe("AppStateFile", () => {
     });
     await expect(reread.getLastWorkshop()).resolves.toBe("/home/user/work");
   });
+
+  it("has no sidebar width before one is set", async () => {
+    const state = new AppStateFile(await stateFilePath());
+    await expect(state.getSidebarWidth()).resolves.toBeUndefined();
+  });
+
+  it("returns the sidebar width set, across instances", async () => {
+    const file = await stateFilePath();
+    await new AppStateFile(file).setSidebarWidth(312);
+    await expect(new AppStateFile(file).getSidebarWidth()).resolves.toBe(312);
+  });
+
+  it("ignores an invalid sidebar width without losing the rest of the state", async () => {
+    const file = await stateFilePath();
+    await writeFile(
+      file,
+      JSON.stringify({ lastWorkshop: "/home/user/studies", sidebarWidth: "wide" }),
+    );
+    const state = new AppStateFile(file);
+    await expect(state.getSidebarWidth()).resolves.toBeUndefined();
+    await expect(state.getLastWorkshop()).resolves.toBe("/home/user/studies");
+  });
+
+  it("ignores a sidebar width that isn't positive", async () => {
+    const file = await stateFilePath();
+    await writeFile(file, JSON.stringify({ sidebarWidth: -20 }));
+    await expect(new AppStateFile(file).getSidebarWidth()).resolves.toBeUndefined();
+  });
 });

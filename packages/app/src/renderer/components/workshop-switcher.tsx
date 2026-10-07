@@ -54,6 +54,14 @@ async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | un
   }
 }
 
+/** What `promise` resolves to, or `undefined` once it fails, after reporting why. */
+function undefinedOnFailure<T>(promise: Promise<T>): Promise<T | undefined> {
+  return promise.catch((error: unknown) => {
+    reportError(error);
+    return undefined;
+  });
+}
+
 /**
  * Holds the open workshop, if any, and opens or creates another in its place, saving pending edits and pausing
  * layout saves before the host switches: once it has, a late save would land on the same path in the other
@@ -63,6 +71,8 @@ async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | un
 export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitcherProps) {
   const [restoring, setRestoring] = useState(true);
   const [workshop, setWorkshop] = useState<WorkshopInfo>();
+  // Kept here, above the workshop screen, so going to the welcome screen and back doesn't lose it.
+  const [sidebarWidth, setSidebarWidth] = useState<number>();
   const [notAWorkshopFolder, setNotAWorkshopFolder] = useState<string>();
   const [createDialog, setCreateDialog] = useState<CreateDialogState>(closedCreateDialog);
 
@@ -71,18 +81,18 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
 
   useEffect(() => {
     let cancelled = false;
-    void reopenLastWorkshop(client)
-      .catch((error: unknown) => {
-        // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
-        reportError(error);
-        return undefined;
-      })
-      .then((reopened) => {
-        if (cancelled) return;
-        if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
-        setWorkshop(reopened);
-        setRestoring(false);
-      });
+    void Promise.all([
+      // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
+      undefinedOnFailure(reopenLastWorkshop(client)),
+      // Falls back to the default width, and each failure leaves the other result alone.
+      undefinedOnFailure(window.hone.getSidebarWidth()),
+    ]).then(([reopened, savedWidth]) => {
+      if (cancelled) return;
+      setSidebarWidth(savedWidth);
+      if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
+      setWorkshop(reopened);
+      setRestoring(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -138,6 +148,11 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
           workshop={workshop}
           openFiles={openFiles}
           layouts={layouts}
+          sidebarWidth={sidebarWidth}
+          onSidebarWidthChange={(width) => {
+            setSidebarWidth(width);
+            window.hone.setSidebarWidth(width).catch(reportError);
+          }}
           onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />

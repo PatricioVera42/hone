@@ -185,6 +185,14 @@ async function start(): Promise<void> {
     if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
     return appState.setLastWorkshop(root);
   });
+  ipcMain.handle("state:get-sidebar-width", () => appState.getSidebarWidth());
+  ipcMain.handle("state:set-sidebar-width", (_event, width: unknown) => {
+    // The state file reads a width that isn't a positive number as unset, so one would erase the saved width.
+    if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) {
+      throw new Error("setSidebarWidth needs a positive width");
+    }
+    return appState.setSidebarWidth(width);
+  });
   ipcMain.handle("state:load-layout", (_event, root: unknown) => {
     if (typeof root !== "string") throw new Error("loadLayout needs a string root");
     return appState.getLayout(root);

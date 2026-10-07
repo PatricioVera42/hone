@@ -1,9 +1,16 @@
 // Preload: the renderer's only way to reach main: the host connection, the native folder dialog, app state (the
-// last workshop and each workshop's layout) and saving pending edits before the window closes.
+// last workshop, the sidebar's width and each workshop's layout) and saving pending edits before the window closes.
 import { contextBridge, ipcRenderer } from "electron";
 
 function asString(value: unknown): string {
   if (typeof value !== "string") throw new Error("host connection IPC returned a non-string value");
+  return value;
+}
+
+function asOptionalNumber(value: unknown): number | undefined {
+  if (value !== undefined && typeof value !== "number") {
+    throw new Error("IPC returned a value that is neither a number nor undefined");
+  }
   return value;
 }
 
@@ -25,6 +32,11 @@ contextBridge.exposeInMainWorld("hone", {
     asOptionalString(await ipcRenderer.invoke("state:get-last-workshop")),
   setLastWorkshop: async (root: string): Promise<void> => {
     await ipcRenderer.invoke("state:set-last-workshop", root);
+  },
+  getSidebarWidth: async (): Promise<number | undefined> =>
+    asOptionalNumber(await ipcRenderer.invoke("state:get-sidebar-width")),
+  setSidebarWidth: async (width: number): Promise<void> => {
+    await ipcRenderer.invoke("state:set-sidebar-width", width);
   },
   loadLayout: (root: string): Promise<unknown> => ipcRenderer.invoke("state:load-layout", root),
   saveLayout: async (root: string, layout: unknown): Promise<void> => {

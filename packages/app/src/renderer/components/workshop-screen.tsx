@@ -29,19 +29,25 @@ interface WorkshopScreenProps {
   readonly workshop: WorkshopInfo;
   readonly openFiles: OpenFiles;
   readonly layouts: LayoutSaver;
+  /** The sidebar's saved width in pixels, if any. */
+  readonly sidebarWidth: number | undefined;
+  readonly onSidebarWidthChange: (width: number) => void;
   readonly onOpenWorkshop: () => void;
   readonly onCreateWorkshop: () => void;
 }
 
 /**
- * The open workshop: a fixed left sidebar with the file tree, whose header menu switches workshops, and the editor
- * area to its right. The toggle button in the bar above the editor area, or Ctrl+B, opens and closes the sidebar.
+ * The open workshop: a left sidebar with the file tree, whose header menu switches workshops, and the editor area to
+ * its right. The toggle button in the bar above the editor area, or Ctrl+B, opens and closes the sidebar, and
+ * dragging its right edge resizes it.
  */
 export function WorkshopScreen({
   client,
   workshop,
   openFiles,
   layouts,
+  sidebarWidth,
+  onSidebarWidthChange,
   onOpenWorkshop,
   onCreateWorkshop,
 }: WorkshopScreenProps) {
@@ -64,7 +70,7 @@ export function WorkshopScreen({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultWidth={sidebarWidth} onWidthChange={onSidebarWidthChange}>
       <Sidebar>
         <SidebarHeader>
           <SidebarMenu>
