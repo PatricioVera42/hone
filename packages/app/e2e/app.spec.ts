@@ -1173,7 +1173,7 @@ test("a folder segment's menu lists its entries, folders first, and opens files 
   }
 });
 
-test("a folder's submenu says when the folder is empty, and shows the error when it can't be listed", async () => {
+test("a folder's submenu says when the folder is empty, and shows the error when it can't be listed, toasting it once", async () => {
   const { root, electronApp, page, breadcrumbs } = await openNestedNote();
   try {
     await breadcrumbs.getByRole("button", { name: "notes" }).click();
@@ -1193,6 +1193,13 @@ test("a folder's submenu says when the folder is empty, and shows the error when
     await rm(path.join(root, "notes", "archive"), { recursive: true });
     await page.getByRole("menuitem", { name: "archive" }).press("ArrowRight");
     await expect(archive.getByRole("alert")).toHaveText(/\S/);
+
+    // Opening it again lists it again and shows the error in the menu, but by then a second toast would have shown up.
+    await page.keyboard.press("Escape");
+    await expect(archive).toBeHidden();
+    await page.getByRole("menuitem", { name: "archive" }).press("ArrowRight");
+    await expect(archive.getByRole("alert")).toHaveText(/\S/);
+    await expect(page.getByText("Something went wrong")).toHaveCount(1);
   } finally {
     await electronApp.close();
   }

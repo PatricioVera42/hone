@@ -29,6 +29,8 @@ type Listing =
 interface FolderEntriesProps {
   readonly client: HostClient;
   readonly folder: string;
+  /** The bar's folders whose listing failure was already toasted, which this adds to. */
+  readonly toastedFolders: Set<string>;
   readonly onOpenFile: (path: string) => void;
 }
 
@@ -36,7 +38,7 @@ interface FolderEntriesProps {
  * The entries of a folder as menu items, listed when it mounts. A menu's content only mounts while it's open, so each
  * opening lists the folder again.
  */
-function FolderEntries({ client, folder, onOpenFile }: FolderEntriesProps) {
+function FolderEntries({ client, folder, toastedFolders, onOpenFile }: FolderEntriesProps) {
   const [listing, setListing] = useState<Listing>({ status: "loading" });
 
   useEffect(() => {
@@ -49,13 +51,17 @@ function FolderEntries({ client, folder, onOpenFile }: FolderEntriesProps) {
       .catch((error: unknown) => {
         // A cancelled call was replaced by a newer one (StrictMode runs effects twice), which reports its own error.
         if (cancelled) return;
-        reportError(error);
+        // Hovering a failing folder again shows the error in the menu, without a new toast each time.
+        if (!toastedFolders.has(folder)) {
+          toastedFolders.add(folder);
+          reportError(error);
+        }
         setListing({ status: "failed", message: errorMessage(error) });
       });
     return () => {
       cancelled = true;
     };
-  }, [client, folder]);
+  }, [client, folder, toastedFolders]);
 
   if (listing.status === "loading") {
     return <p className="px-2 py-1 text-xs text-muted-foreground">Loading…</p>;
@@ -88,7 +94,12 @@ function FolderEntries({ client, folder, onOpenFile }: FolderEntriesProps) {
       <DropdownMenuSub key={entry.name}>
         <DropdownMenuSubTrigger>{entry.name}</DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <FolderEntries client={client} folder={path} onOpenFile={onOpenFile} />
+          <FolderEntries
+            client={client}
+            folder={path}
+            toastedFolders={toastedFolders}
+            onOpenFile={onOpenFile}
+          />
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     );
@@ -113,6 +124,7 @@ export function EditorBreadcrumbs({
   path,
   onOpenFile,
 }: EditorBreadcrumbsProps) {
+  const [toastedFolders] = useState(() => new Set<string>());
   const folders = [{ name: workshopName, path: "" }, ...ancestorFolders(path)];
   return (
     <div className="shrink-0 px-3 py-1.5">
@@ -126,7 +138,12 @@ export function EditorBreadcrumbs({
                   {/* The sub-menu's content, which fits its widest name, unlike the menu's, which is as wide as its trigger.
                       Its offsets are reset to the menu's, so it opens below the segment, aligned with it. */}
                   <DropdownMenuSubContent side="bottom" sideOffset={4} alignOffset={0}>
-                    <FolderEntries client={client} folder={folder.path} onOpenFile={onOpenFile} />
+                    <FolderEntries
+                      client={client}
+                      folder={folder.path}
+                      toastedFolders={toastedFolders}
+                      onOpenFile={onOpenFile}
+                    />
                   </DropdownMenuSubContent>
                 </DropdownMenu>
               </BreadcrumbItem>
