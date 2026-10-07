@@ -36,7 +36,7 @@ On your first reply, before answering, read <folder>/PROGRESS.md if it exists an
 ## Files
 
 - <folder>/AGENTS.md and <folder>/.hone/inherited.md belong to the generator: you read them and leave them as they are.
-- <folder>/PROGRESS.md changes only through `<close>`, and <folder>/agent/progress-inbox.md only through `<quick-close>`.
+- <folder>/PROGRESS.md changes only through `<close>`. `<quick-close>` adds drafts to <folder>/agent/progress-inbox.md, and `<close>` removes them once decided.
 - What you write for the user (lessons, reference notes, practice, the roadmap, the approved sources) goes in <folder>/agent/. <folder>/material/ holds what the user adds.
 - The user's own notes: read them freely, edit them only when the user asks.
 
