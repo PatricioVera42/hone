@@ -63,6 +63,8 @@ async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | un
 export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitcherProps) {
   const [restoring, setRestoring] = useState(true);
   const [workshop, setWorkshop] = useState<WorkshopInfo>();
+  // Kept here, above the workshop screen, so the welcome screen and back doesn't lose it.
+  const [sidebarWidth, setSidebarWidth] = useState<number>();
   const [notAWorkshopFolder, setNotAWorkshopFolder] = useState<string>();
   const [createDialog, setCreateDialog] = useState<CreateDialogState>(closedCreateDialog);
 
@@ -71,14 +73,19 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
 
   useEffect(() => {
     let cancelled = false;
-    void reopenLastWorkshop(client)
+    void Promise.all([
+      reopenLastWorkshop(client),
+      // A width that can't be read means the default, and doesn't stop the last workshop from reopening.
+      window.hone.getSidebarWidth().catch(() => undefined),
+    ])
       .catch((error: unknown) => {
         // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
         reportError(error);
-        return undefined;
+        return [undefined, undefined] as const;
       })
-      .then((reopened) => {
+      .then(([reopened, savedWidth]) => {
         if (cancelled) return;
+        setSidebarWidth(savedWidth);
         if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
         setWorkshop(reopened);
         setRestoring(false);
@@ -138,6 +145,11 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
           workshop={workshop}
           openFiles={openFiles}
           layouts={layouts}
+          sidebarWidth={sidebarWidth}
+          onSidebarWidthChange={(width) => {
+            setSidebarWidth(width);
+            window.hone.setSidebarWidth(width).catch(reportError);
+          }}
           onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />

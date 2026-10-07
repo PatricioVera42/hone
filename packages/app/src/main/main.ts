@@ -185,6 +185,11 @@ async function start(): Promise<void> {
     if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
     return appState.setLastWorkshop(root);
   });
+  ipcMain.handle("state:get-sidebar-width", () => appState.getSidebarWidth());
+  ipcMain.handle("state:set-sidebar-width", (_event, width: unknown) => {
+    if (typeof width !== "number") throw new Error("setSidebarWidth needs a number width");
+    return appState.setSidebarWidth(width);
+  });
   ipcMain.handle("state:load-layout", (_event, root: unknown) => {
     if (typeof root !== "string") throw new Error("loadLayout needs a string root");
     return appState.getLayout(root);
