@@ -21,6 +21,7 @@ import { tags } from "@lezer/highlight";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
+import { indentKeymap } from "@/indent-keymap.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -166,6 +167,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           drawSelection(),
           highlightActiveLine(),
           bracketClosing,
+          indentKeymap,
           keymap.of(defaultKeymap),
           syntaxHighlighting(highlightStyle),
           theme,
