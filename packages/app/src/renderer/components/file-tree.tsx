@@ -362,23 +362,29 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
   const [loaded, setLoaded] = useState(expanded);
   // Expanded from elsewhere too, such as by New note on it.
   if (expanded && !loaded) setLoaded(true);
-  // The error that made listing the folder fail. It stays unavailable until the tree is rebuilt, so the user isn't
-  // told again by every click and nothing retries.
-  const [unavailable, setUnavailable] = useState<string>();
+  // Set once listing the folder fails, which makes it unavailable until the tree is rebuilt, so the user isn't told
+  // again by every click and nothing retries.
+  const [listingError, setListingError] = useState<string>();
 
-  if (unavailable !== undefined && renameRow === undefined) {
+  if (listingError !== undefined && renameRow === undefined) {
     return (
       <Tooltip>
         {/* On the row rather than the button, whose disabled style stops it from receiving the pointer. */}
         <TooltipTrigger render={<SidebarMenuItem />}>
-          <SidebarMenuButton aria-disabled data-entry-path={path} data-entry-kind="folder">
+          {/* The tooltip isn't tied to the button, so a screen reader gets the error from the description. */}
+          <SidebarMenuButton
+            aria-disabled
+            aria-description={listingError}
+            data-entry-path={path}
+            data-entry-kind="folder"
+          >
             {/* Lines the folder up with the others, whose icons follow a chevron. */}
             <span aria-hidden className="size-4 shrink-0" />
             <HugeiconsIcon icon={Folder01Icon} strokeWidth={2} />
             <span>{name}</span>
           </SidebarMenuButton>
         </TooltipTrigger>
-        <TooltipContent side="right">{unavailable}</TooltipContent>
+        <TooltipContent side="right">{listingError}</TooltipContent>
       </Tooltip>
     );
   }
@@ -408,9 +414,9 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
           <span>{name}</span>
         </SidebarMenuButton>
       )}
-      {loaded && unavailable === undefined && (
+      {loaded && listingError === undefined && (
         <SidebarMenuSub hidden={!expanded}>
-          <FolderContents path={path} onUnavailable={setUnavailable} />
+          <FolderContents path={path} onUnavailable={setListingError} />
         </SidebarMenuSub>
       )}
     </SidebarMenuItem>

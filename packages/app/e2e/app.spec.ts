@@ -357,8 +357,13 @@ test("a folder that can't be listed shows an error once, then shows as unavailab
     await expect(tree.locator('[data-sidebar="menu-skeleton"]')).toHaveCount(0);
     await expect(escape).toBeDisabled();
     await expect(escape).not.toHaveAttribute("aria-expanded");
+    // Only the folder icon is left: the chevron is gone.
+    await expect(escape.locator("svg")).toHaveCount(1);
+    await expect(escape).toHaveAccessibleDescription("escape is outside the workshop");
 
     await escape.click({ force: true });
+    // The mouse can't reach the button, but the keyboard can.
+    await escape.press("Enter");
     // A folder that lists fine still opens, and by then a second toast would have shown up.
     await tree.getByRole("button", { name: "Math" }).click();
     await expect(tree.getByRole("button", { name: "algebra.md" })).toBeVisible();
