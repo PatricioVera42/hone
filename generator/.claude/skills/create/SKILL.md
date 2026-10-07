@@ -46,7 +46,7 @@ If you can hand work to a sub-agent, run the search in one and keep its pages ou
 
 Leave out SEO blogs, content farms and videos with no author or institution behind them. When two sources are equally good, prefer the one in the profile's language.
 
-Show between 3 and 7, each with its title and link, its author or institution, what it covers, and why it's trustworthy. The user picks any number, or none. The chosen ones go into `<folder>/material/sources.md`, one bullet per source carrying those same four things, under a heading in the profile's language. Download nothing unless the user asks.
+Show between 3 and 7, each with its title and link, its author or institution, what it covers, and why it's trustworthy. The user picks any number, or none. The chosen ones go into `<folder>/agent/sources.md`, one bullet per source carrying those same four things, under a heading in the profile's language. Download nothing unless the user asks.
 
 ## Skills
 
@@ -56,7 +56,7 @@ Every project gets the library's `close` and `quick-close`. Offer every other sk
 
 Show the plan in one message:
 
-- The folder, saying whether it's new or existing, and every file and folder you'll create in it: `AGENTS.md`, `.hone/inherited.md`, `.claude/skills/` with the skills, `material/` for a new project, and `material/sources.md` if they picked sources.
+- The folder, saying whether it's new or existing, and every file and folder you'll create in it: `AGENTS.md`, `.hone/inherited.md`, `.claude/skills/` with the skills, `material/` for a new project, and `agent/sources.md` if they picked sources.
 - A summary of `AGENTS.md`: the goal, deadlines, how to work, and where the material is.
 - A summary of `.hone/inherited.md`: what it carries from the profile.
 - The skills, each under its final name.
@@ -65,7 +65,7 @@ Show the full text of any file the user asks to see. After each correction, show
 
 ## Writing
 
-Write `<folder>/AGENTS.md` and `<folder>/.hone/inherited.md` from the template, copy each chosen skill's folder from `library/` into `<folder>/.claude/skills/` under its final name, create `<folder>/material/` for a new project, and write `<folder>/material/sources.md` if there are sources. Add nothing else: the project's agent and its skills create the rest of the project's files as they need them.
+Write `<folder>/AGENTS.md` and `<folder>/.hone/inherited.md` from the template, copy each chosen skill's folder from `library/` into `<folder>/.claude/skills/` under its final name, create `<folder>/material/` for a new project, and write `<folder>/agent/sources.md` if there are sources. Add nothing else: the project's agent and its skills create the rest of the project's files as they need them.
 
 ## After writing
 

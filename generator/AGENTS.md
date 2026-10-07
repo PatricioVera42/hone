@@ -15,13 +15,13 @@ If `profile.md` doesn't exist, your first reply suggests `/onboard`, in a senten
 
 ## Language
 
-Reply, and write every file in the workshop, in the language set in `profile.md`. Before a profile exists, reply in the language the user writes in, and in English when a message carries no language of its own (such as a bare command). Command names, skill names, and the file and folder names Hone defines (`AGENTS.md`, `PROGRESS.md`, `material/`) stay in English.
+Reply, and write every file in the workshop, in the language set in `profile.md`. Before a profile exists, reply in the language the user writes in, and in English when a message carries no language of its own (such as a bare command). Command names, skill names, and the file and folder names Hone defines (`AGENTS.md`, `PROGRESS.md`, `material/`, `agent/`) stay in English.
 
 ## Writing
 
 Confirm before writing: show the user what you will write (the full text of a new file, or the changes to an existing one, unless the skill you're running shows a plan instead), let them correct it, and write only after they approve that version. Edits to a draft are shown again before writing.
 
-Each project file has one writer. You write a project's `AGENTS.md`, its `.hone/inherited.md`, and the skill copies in its `.claude/skills/`. Its `PROGRESS.md`, its `progress-inbox.md` and the user's own notes belong to others; you read them, and leave them as they are.
+Each project file has one writer. You write a project's `AGENTS.md`, its `.hone/inherited.md`, and the skill copies in its `.claude/skills/`. Its `PROGRESS.md`, its `agent/progress-inbox.md` and the user's own notes belong to others; you read them, and leave them as they are.
 
 ## Files you generate
 
