@@ -21,6 +21,7 @@ import { tags } from "@lezer/highlight";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
+import { indentKeymap } from "@/indent-keymap.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -84,7 +85,9 @@ const noteExtensions: Extension = [
   noteBracketClosing,
 ];
 
+// Tab, Shift+Tab and Ctrl+L indent and select lines only in code; in a note Tab moves focus, as on a web page.
 const codeExtensions: Extension = [
+  indentKeymap,
   lineNumbers(),
   highlightActiveLineGutter(),
   EditorView.theme({ ".cm-scroller": { fontFamily: "var(--font-code)" } }),

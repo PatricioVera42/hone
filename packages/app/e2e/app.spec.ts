@@ -570,6 +570,71 @@ test("typing { in a code file closes it, Backspace removes the pair and Enter sp
   }
 });
 
+test("Tab indents in a code file and Shift+Tab dedents, and Ctrl+L then Tab indents the line", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor(
+    "greet.ts",
+    "function greet() {\n    return 1;\n}\n",
+  );
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => readFile(file, "utf8"))
+      .toBe("    function greet() {\n    return 1;\n}\n");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Control+l");
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => readFile(file, "utf8"))
+      .toBe("function greet() {\n        return 1;\n}\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("in a note Tab moves focus out of the editor instead of indenting", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "- Groups.\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Tab");
+    await expect(editor).not.toBeFocused();
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("x");
+    await expect.poll(() => readFile(file, "utf8")).toBe("- Groups.\nx");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Escape then Tab moves focus out of the editor, and so does every Tab after Ctrl+M until it is pressed again", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("greet.ts", "x\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Tab");
+    await expect(editor).not.toBeFocused();
+    await editor.click();
+    await page.keyboard.press("Control+m");
+    await page.keyboard.press("Tab");
+    await expect(editor).not.toBeFocused();
+    await editor.click();
+    await page.keyboard.press("Tab");
+    await expect(editor).not.toBeFocused();
+    await editor.click();
+    await page.keyboard.press("Control+m");
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Tab");
+    await expect(editor).toBeFocused();
+    await expect.poll(() => readFile(file, "utf8")).toBe("  x\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("typing a code fence in a note closes it, and Enter after the language splits it", async () => {
   const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "x\n\n");
   try {
