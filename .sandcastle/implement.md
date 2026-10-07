@@ -17,4 +17,4 @@ Implement issue #{{ISSUE_NUMBER}}, shown above with its comments. The agent brie
 
 # Done
 
-End your last message with a summary for the pull request description: what you built, how you tested it, and anything left undone or worth a human's attention. Wrap it in `<summary>` and `</summary>`.
+End your last message with the pull request description, written with the /pr skill. Its Evidence section uses test runs, since screenshots can't be attached from here. After Merge Danger, add a **Worth a human's attention** section: choices the brief didn't settle, anything left undone, and what to try by hand. Wrap it all in `<summary>` and `</summary>`.
