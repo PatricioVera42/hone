@@ -85,7 +85,9 @@ const noteExtensions: Extension = [
   noteBracketClosing,
 ];
 
+// Tab, Shift+Tab and Ctrl+L indent and select lines only in code; in a note Tab moves focus, as on a web page.
 const codeExtensions: Extension = [
+  indentKeymap,
   lineNumbers(),
   highlightActiveLineGutter(),
   EditorView.theme({ ".cm-scroller": { fontFamily: "var(--font-code)" } }),
@@ -167,7 +169,6 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           drawSelection(),
           highlightActiveLine(),
           bracketClosing,
-          indentKeymap,
           keymap.of(defaultKeymap),
           syntaxHighlighting(highlightStyle),
           theme,
