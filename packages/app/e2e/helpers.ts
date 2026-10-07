@@ -45,6 +45,21 @@ export function workshopMenuButton(page: Page, name: string): Locator {
   return page.locator('[data-sidebar="header"]').getByRole("button", { name, exact: true });
 }
 
+/** Renames the file `from` in the tree, which is open in an editor tab, to `to`. */
+export async function renameInTree(
+  page: Page,
+  tree: Locator,
+  from: string,
+  to: string,
+): Promise<void> {
+  await tree.getByRole("button", { name: from }).press("F2");
+  const name = tree.getByRole("textbox", { name: "Name" });
+  await name.fill(to);
+  await name.press("Enter");
+  await expect(tree.getByRole("button", { name: to })).toBeVisible();
+  await expect(page.getByRole("tab", { name: to })).toBeVisible();
+}
+
 /** Resizes the app's window from main, the way a user snapping it to half a screen would. */
 export async function resizeWindow(
   electronApp: ElectronApplication,

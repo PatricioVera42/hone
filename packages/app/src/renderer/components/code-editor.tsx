@@ -1,4 +1,4 @@
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, redo } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import {
   HighlightStyle,
@@ -7,7 +7,13 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
+import {
+  Annotation,
+  Compartment,
+  EditorState,
+  Transaction,
+  type Extension,
+} from "@codemirror/state";
 import {
   EditorView,
   drawSelection,
@@ -149,6 +155,8 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
   useEffect(() => {
     if (parent.current === null) return undefined;
     const lineSeparator = new Compartment();
+    // Emptied and filled again to clear the undo history when the content is replaced from disk.
+    const undoHistory = new Compartment();
     // Assigned once the view exists, which its listener only needs after the first edit.
     let connection: EditorConnection | undefined;
     const editorView = new EditorView({
@@ -169,7 +177,13 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           drawSelection(),
           highlightActiveLine(),
           bracketClosing,
-          keymap.of(defaultKeymap),
+          undoHistory.of(history()),
+          keymap.of([
+            ...defaultKeymap,
+            ...historyKeymap,
+            // historyKeymap binds Ctrl+Shift+Z to redo only on Linux.
+            { win: "Ctrl-Shift-z", run: redo, preventDefault: true },
+          ]),
           syntaxHighlighting(highlightStyle),
           theme,
           modeCompartment.of(isNote(initialPath()) ? noteMode : codeMode),
@@ -182,12 +196,17 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
       read: () => editorView.state.sliceDoc(),
       replace: (next) => {
         // Reconfigured first, so the new content is split into lines by its own line endings.
-        editorView.dispatch({ effects: lineSeparator.reconfigure(lineSeparatorFor(next)) });
+        editorView.dispatch({
+          effects: [lineSeparator.reconfigure(lineSeparatorFor(next)), undoHistory.reconfigure([])],
+        });
         const nextLength = editorView.state.toText(next).length;
+        // The history comes back empty, so Ctrl+Z can't bring back the old content and save it over the new one.
         editorView.dispatch({
           changes: { from: 0, to: editorView.state.doc.length, insert: next },
           selection: { anchor: Math.min(editorView.state.selection.main.head, nextLength) },
-          annotations: fromDisk.of(true),
+          // A history added by a transaction would otherwise record that transaction's own change.
+          annotations: [fromDisk.of(true), Transaction.addToHistory.of(false)],
+          effects: undoHistory.reconfigure(history()),
         });
       },
     });

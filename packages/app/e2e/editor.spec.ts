@@ -4,7 +4,14 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { BaseWindow, MessageBoxOptions } from "electron";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { launch, makeWorkshop, pickFolderInDialog, workshopMenuButton } from "./helpers.ts";
+import {
+  launch,
+  makeWorkshop,
+  openWorkshopWith,
+  pickFolderInDialog,
+  renameInTree,
+  workshopMenuButton,
+} from "./helpers.ts";
 
 test("clicking a note opens it in an editor tab once, and Ctrl+W closes it", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
@@ -80,6 +87,52 @@ test("typing in a note saves it to disk shortly after", async () => {
     await page.keyboard.press("Control+End");
     await page.keyboard.type("Rings.");
     await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+for (const name of ["algebra.md", "algebra.txt"]) {
+  test(`in ${name}, Ctrl+Z undoes typing and saves the undo, and Ctrl+Y and Ctrl+Shift+Z each redo it`, async () => {
+    const { file, electronApp, page, editor } = await openFileInEditor(name, "Groups.\n");
+    try {
+      await editor.click();
+      await page.keyboard.press("Control+End");
+      await page.keyboard.type("Rings.");
+      await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
+
+      await page.keyboard.press("Control+z");
+      await expect(editor).toHaveText("Groups.");
+      await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\n");
+      await page.keyboard.press("Control+y");
+      await expect(editor).toHaveText("Groups.Rings.");
+      await page.keyboard.press("Control+z");
+      await expect(editor).toHaveText("Groups.");
+      await page.keyboard.press("Control+Shift+z");
+      await expect(editor).toHaveText("Groups.Rings.");
+    } finally {
+      await electronApp.close();
+    }
+  });
+}
+
+test("Ctrl+Z after renaming an open file undoes the edit made before the rename", async () => {
+  const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
+    writeFile(path.join(workshop, "idea.md"), "Groups.\n"),
+  );
+  try {
+    await tree.getByRole("button", { name: "idea.md" }).click();
+    await page.getByRole("textbox", { name: "idea.md" }).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await expect.poll(() => readFile(path.join(root, "idea.md"), "utf8")).toBe("Groups.\nRings.");
+
+    await renameInTree(page, tree, "idea.md", "plan.md");
+    const editor = page.getByRole("textbox", { name: "plan.md" });
+    await editor.click();
+    await page.keyboard.press("Control+z");
+    await expect(editor).toHaveText("Groups.");
+    await expect.poll(() => readFile(path.join(root, "plan.md"), "utf8")).toBe("Groups.\n");
   } finally {
     await electronApp.close();
   }
@@ -186,6 +239,27 @@ test("a note rewritten on disk shows its new content in the editor", async () =>
     await writeFile(file, "Fields.\n");
     await expect(editor).toContainText("Fields.");
     await expect(editor).not.toContainText("Groups.");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Ctrl+Z after a note is rewritten on disk changes neither the editor nor the file", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
+    await writeFile(file, "Fields.\n");
+    await expect(editor).toHaveText("Fields.");
+
+    await editor.click();
+    await page.keyboard.press("Control+z");
+    // Long enough for an undo to reach the editor and be saved, if it happened.
+    await page.waitForTimeout(1000);
+    await expect(editor).toHaveText("Fields.");
+    await expect(readFile(file, "utf8")).resolves.toBe("Fields.\n");
   } finally {
     await electronApp.close();
   }

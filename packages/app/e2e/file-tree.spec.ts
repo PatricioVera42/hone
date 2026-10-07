@@ -1,9 +1,15 @@
 // End-to-end: the file tree, and creating, renaming and deleting files and folders from it.
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { launch, makeWorkshop, openWorkshopWith, pickFolderInDialog } from "./helpers.ts";
+import {
+  launch,
+  makeWorkshop,
+  openWorkshopWith,
+  pickFolderInDialog,
+  renameInTree,
+} from "./helpers.ts";
 
 test("the sidebar lists the workshop's files, folders first, and loads a folder when it's expanded", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
@@ -180,16 +186,6 @@ test("F2 on an open file renames it on disk and in its tab", async () => {
     await electronApp.close();
   }
 });
-
-/** Renames the file `from` in the tree, which is open in an editor tab, to `to`. */
-async function renameInTree(page: Page, tree: Locator, from: string, to: string): Promise<void> {
-  await tree.getByRole("button", { name: from }).press("F2");
-  const name = tree.getByRole("textbox", { name: "Name" });
-  await name.fill(to);
-  await name.press("Enter");
-  await expect(tree.getByRole("button", { name: to })).toBeVisible();
-  await expect(page.getByRole("tab", { name: to })).toBeVisible();
-}
 
 test("renaming an open file switches its editor between code and note settings, keeping what's typed", async () => {
   const { root, electronApp, page, tree } = await openWorkshopWith((workshop) =>
