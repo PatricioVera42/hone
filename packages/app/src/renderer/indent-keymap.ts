@@ -10,7 +10,7 @@ import {
 } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 
-// VS Code's rule for a Tab that doesn't indent lines: type what reaches the next indent stop.
+/** The text a Tab that doesn't indent lines types at `position`, as VS Code has it: what reaches the next indent stop. */
 function textToNextIndentStop(state: EditorState, position: number): string {
   const unit = state.facet(indentUnit);
   if (unit === "\t") return unit;
@@ -20,7 +20,7 @@ function textToNextIndentStop(state: EditorState, position: number): string {
   return " ".repeat(width - (column % width));
 }
 
-// A selection that reaches into a second line, or covers all of one, indents lines; anything smaller is replaced.
+/** Whether Tab indents the lines `range` touches: it reaches into a second line or covers all of one. */
 function indentsLines(state: EditorState, range: SelectionRange): boolean {
   if (range.empty) return false;
   const first = state.doc.lineAt(range.from);
@@ -82,7 +82,12 @@ export const selectWholeLines: StateCommand = ({ state, dispatch }) => {
     const end = last.number < state.doc.lines ? last.to + 1 : state.doc.length;
     return EditorSelection.range(first.from, end);
   });
-  dispatch(state.update({ selection: EditorSelection.create(ranges), userEvent: "select" }));
+  dispatch(
+    state.update({
+      selection: EditorSelection.create(ranges, state.selection.mainIndex),
+      userEvent: "select",
+    }),
+  );
   return true;
 };
 

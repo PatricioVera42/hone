@@ -1,4 +1,3 @@
-import { indentLess } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { EditorSelection, EditorState, type StateCommand } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
@@ -100,19 +99,11 @@ describe("Tab", () => {
     code.run(indentWithTabStops);
     expect(code.text).toBe("a   |b\ncd  |e\n    [f\n    g]h\ni   |j");
   });
-});
 
-describe("Shift+Tab", () => {
-  it("removes one indent unit from the line, wherever the cursor is on it", () => {
-    const code = editor("        ab|c");
-    code.run(indentLess);
-    expect(code.text).toBe("    ab|c");
-  });
-
-  it("changes nothing on a line without indentation", () => {
-    const code = editor("ab|c");
-    code.run(indentLess);
-    expect(code.text).toBe("ab|c");
+  it("indents a line once when two selections touch it", () => {
+    const code = editor("[a\nb]c[d\ne]");
+    code.run(indentWithTabStops);
+    expect(code.text).toBe("    [a\n    b]c[d\n    e]");
   });
 });
 
@@ -139,5 +130,20 @@ describe("Ctrl+L", () => {
     const code = editor("a[b\nc]d\ne");
     code.run(selectWholeLines);
     expect(code.text).toBe("[ab\ncd\n]e");
+  });
+
+  it("keeps the main selection the same one of several", () => {
+    let state = EditorState.create({
+      doc: "a\nb\nc",
+      extensions: [EditorState.allowMultipleSelections.of(true)],
+      selection: EditorSelection.create([EditorSelection.cursor(0), EditorSelection.cursor(4)], 1),
+    });
+    selectWholeLines({
+      state,
+      dispatch: (transaction) => {
+        state = transaction.state;
+      },
+    });
+    expect(state.selection.main).toEqual(EditorSelection.range(4, 5));
   });
 });

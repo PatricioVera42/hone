@@ -594,19 +594,35 @@ test("Tab indents in a code file and Shift+Tab dedents, and Ctrl+L then Tab inde
   }
 });
 
-test("Tab indents in a note too", async () => {
-  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "- Groups.\n");
+test("Tab, Shift+Tab and Ctrl+L work in a note as in a code file", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor(
+    "algebra.md",
+    "- Groups.\n        - Cyclic.\n- Rings.\n",
+  );
   try {
     await editor.click();
     await page.keyboard.press("Control+Home");
     await page.keyboard.press("Tab");
-    await expect.poll(() => readFile(file, "utf8")).toBe("  - Groups.\n");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() => readFile(file, "utf8"))
+      .toBe("    - Groups.\n    - Cyclic.\n- Rings.\n");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Control+l");
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => readFile(file, "utf8"))
+      .toBe("    - Groups.\n    - Cyclic.\n    - Rings.\n");
   } finally {
     await electronApp.close();
   }
 });
 
-test("Escape then Tab moves focus out of the editor, and so does Tab after Ctrl+M", async () => {
+test("Escape then Tab moves focus out of the editor, and so does every Tab after Ctrl+M until it is pressed again", async () => {
   const { file, electronApp, page, editor } = await openFileInEditor("greet.ts", "x\n");
   try {
     await editor.click();
@@ -615,6 +631,9 @@ test("Escape then Tab moves focus out of the editor, and so does Tab after Ctrl+
     await expect(editor).not.toBeFocused();
     await editor.click();
     await page.keyboard.press("Control+m");
+    await page.keyboard.press("Tab");
+    await expect(editor).not.toBeFocused();
+    await editor.click();
     await page.keyboard.press("Tab");
     await expect(editor).not.toBeFocused();
     await editor.click();
