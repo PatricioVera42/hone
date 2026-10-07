@@ -42,7 +42,7 @@ Create a workshop from the welcome screen, open a terminal in its `.hone/generat
 
 ### End-to-end tests
 
-`pnpm test:e2e` builds the app (`pnpm build`) and runs Playwright against it, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does.
+`pnpm test:e2e` runs Playwright against the built app, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does. Playwright's global setup (`e2e/global-setup.ts`) runs `pnpm build` first on every run, even a filtered `playwright test -g`, so the tests never drive a stale build.
 
 The specs in `packages/app/e2e` are one file per area of the app (workshops, file tree, editor and so on), so a ticket touches only its area's file. Helpers that more than one spec uses live in `helpers.ts`; one used by a single spec stays in that spec.
 
