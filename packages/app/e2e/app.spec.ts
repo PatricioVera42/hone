@@ -334,12 +334,14 @@ test("files created and deleted on disk show up in the tree on their own", async
   }
 });
 
-test("a folder that can't be listed shows an error and stops loading", async () => {
+test("a folder that can't be listed shows an error once, then shows as unavailable", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const root = await makeWorkshop(temporary, "studies");
   const outside = path.join(temporary, "outside");
   await mkdir(outside);
   await symlink(outside, path.join(root, "escape"));
+  await mkdir(path.join(root, "Math"));
+  await writeFile(path.join(root, "Math", "algebra.md"), "");
 
   const electronApp = await launch(path.join(temporary, "user-data"));
   try {
@@ -347,10 +349,26 @@ test("a folder that can't be listed shows an error and stops loading", async () 
     await pickFolderInDialog(electronApp, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
     const tree = page.getByRole("navigation", { name: "Files" });
-    await tree.getByRole("button", { name: "escape" }).click();
+    const escape = tree.getByRole("button", { name: "escape" });
+    await escape.click();
 
-    await expect(page.getByText("escape is outside the workshop")).toBeVisible();
+    const toast = page.getByText("escape is outside the workshop");
+    await expect(toast).toBeVisible();
     await expect(tree.locator('[data-sidebar="menu-skeleton"]')).toHaveCount(0);
+    await expect(escape).toBeDisabled();
+    await expect(escape).not.toHaveAttribute("aria-expanded");
+
+    await escape.click({ force: true });
+    // A folder that lists fine still opens, and by then a second toast would have shown up.
+    await tree.getByRole("button", { name: "Math" }).click();
+    await expect(tree.getByRole("button", { name: "algebra.md" })).toBeVisible();
+    await expect(toast).toHaveCount(1);
+
+    // The button ignores the pointer, so the row under it is what the mouse reaches.
+    await escape.hover({ force: true });
+    await expect(page.locator("[data-slot=tooltip-content]")).toHaveText(
+      "escape is outside the workshop",
+    );
   } finally {
     await electronApp.close();
   }
