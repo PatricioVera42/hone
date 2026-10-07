@@ -477,9 +477,7 @@ test("dragging the sidebar's edge resizes it, and the width comes back after rel
   const relaunched = await launch(userData);
   try {
     const relaunchedPage = await relaunched.firstWindow();
-    await expect(
-      relaunchedPage.getByRole("button", { name: "studies", exact: true }),
-    ).toBeVisible();
+    await expect(workshopMenuButton(relaunchedPage, "studies")).toBeVisible();
     await expect.poll(() => sidebarWidth(relaunchedPage)).toBe(340);
   } finally {
     await relaunched.close();
@@ -489,7 +487,7 @@ test("dragging the sidebar's edge resizes it, and the width comes back after rel
 test("dragging the sidebar's edge to the far left collapses it, and reopening restores its width", async () => {
   const { electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
-    const header = page.getByRole("button", { name: "studies", exact: true });
+    const header = workshopMenuButton(page, "studies");
     await dragSidebarEdgeTo(page, 340);
     await expect.poll(() => sidebarWidth(page)).toBe(340);
 
