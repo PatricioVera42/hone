@@ -26,7 +26,7 @@ The course is the one required answer; any other topic can be skipped, and its s
 
 ### Checking the folder
 
-A folder is a project if it has an `AGENTS.md` or a `.hone/inherited.md`. Before the plan, check the chosen folder:
+Before the plan, check the chosen folder:
 
 - If it is already a project, write nothing: `/refine` adjusts its agent.
 - If any folder between it and the workshop root is a project, or any folder inside it is, write nothing: nested projects aren't supported yet. Offer another place.
