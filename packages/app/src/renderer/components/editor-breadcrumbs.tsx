@@ -16,9 +16,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
-import { ancestorFolders, childPath } from "@/entry-path.ts";
+import { ancestorFolders, childPath, entryName } from "@/entry-path.ts";
 import type { HostClient } from "@/host-client.ts";
-import { reportError } from "@/report-error.ts";
+import { errorMessage, reportError } from "@/report-error.ts";
 import { sortEntries } from "@/sort-entries.ts";
 
 type Listing =
@@ -50,10 +50,7 @@ function FolderEntries({ client, folder, onOpenFile }: FolderEntriesProps) {
         // A cancelled call was replaced by a newer one (StrictMode runs effects twice), which reports its own error.
         if (cancelled) return;
         reportError(error);
-        setListing({
-          status: "failed",
-          message: error instanceof Error ? error.message : String(error),
-        });
+        setListing({ status: "failed", message: errorMessage(error) });
       });
     return () => {
       cancelled = true;
@@ -126,7 +123,8 @@ export function EditorBreadcrumbs({
               <BreadcrumbItem>
                 <DropdownMenu>
                   <BreadcrumbLink render={<DropdownMenuTrigger />}>{folder.name}</BreadcrumbLink>
-                  {/* The sub-menu's content, which fits its widest name, unlike the menu's, which is as wide as its trigger. */}
+                  {/* The sub-menu's content, which fits its widest name, unlike the menu's, which is as wide as its trigger.
+                      Its offsets are reset to the menu's, so it opens below the segment, aligned with it. */}
                   <DropdownMenuSubContent side="bottom" sideOffset={4} alignOffset={0}>
                     <FolderEntries client={client} folder={folder.path} onOpenFile={onOpenFile} />
                   </DropdownMenuSubContent>
@@ -136,7 +134,7 @@ export function EditorBreadcrumbs({
             </Fragment>
           ))}
           <BreadcrumbItem>
-            <BreadcrumbPage>{path.slice(path.lastIndexOf("/") + 1)}</BreadcrumbPage>
+            <BreadcrumbPage>{entryName(path)}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

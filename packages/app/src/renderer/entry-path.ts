@@ -8,6 +8,11 @@ export function renamedPath(path: string, from: string, to: string): string | un
   return isAtOrInside(path, from) ? to + path.slice(from.length) : undefined;
 }
 
+/** The name of the entry at `path`: its last segment. */
+export function entryName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
 /** The protocol path of the entry called `name` inside the folder at `folder`, where "" is the workshop root. */
 export function childPath(folder: string, name: string): string {
   return folder === "" ? name : `${folder}/${name}`;

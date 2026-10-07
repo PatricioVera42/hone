@@ -18,7 +18,7 @@ import {
   type EditorPanelParams,
   type TerminalPanelParams,
 } from "@/editor-layout.ts";
-import { isAtOrInside, renamedPath } from "@/entry-path.ts";
+import { entryName, isAtOrInside, renamedPath } from "@/entry-path.ts";
 import type { HostClient } from "@/host-client.ts";
 import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
@@ -109,10 +109,6 @@ function Tab(props: IDockviewPanelHeaderProps) {
   );
 }
 
-function fileName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
 /** Opens a file in the active group, or focuses its tab if it's already open anywhere. */
 function openEditorTab(editors: DockviewApi, path: string): void {
   const existing = editors.panels.find((panel) => panelPath(panel) === path);
@@ -123,7 +119,7 @@ function openEditorTab(editors: DockviewApi, path: string): void {
   const params: EditorPanelParams = { path };
   // Not the path, which a rename changes while a panel's id stays.
   const id = crypto.randomUUID();
-  editors.addPanel({ id, component: "editor", title: fileName(path), params });
+  editors.addPanel({ id, component: "editor", title: entryName(path), params });
 }
 
 /**
@@ -156,7 +152,7 @@ export function renameEditorTabs(editors: DockviewApi, from: string, to: string)
     if (renamed === undefined) continue;
     const params: EditorPanelParams = { path: renamed };
     panel.api.updateParameters(params);
-    panel.api.setTitle(fileName(renamed));
+    panel.api.setTitle(entryName(renamed));
   }
 }
 
@@ -332,9 +328,7 @@ export function EditorArea({
     setEditors(api);
     onReady({
       api,
-      openFile: (path) => {
-        openEditorTab(api, path);
-      },
+      openFile: context.openFile,
       openTerminal: (cwd, title) => {
         openTerminalTab(api, cwd, title, lastTerminal.current?.group);
       },
