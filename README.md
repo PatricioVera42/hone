@@ -44,6 +44,8 @@ Create a workshop from the welcome screen, open a terminal in its `.hone/generat
 
 `pnpm test:e2e` builds the app (`pnpm build`) and runs Playwright against it, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does.
 
+The specs in `packages/app/e2e` are one file per area of the app (workshops, file tree, editor and so on), so a ticket touches only its area's file. Helpers that more than one spec uses live in `helpers.ts`; one used by a single spec stays in that spec.
+
 Playwright needs a display. Locally in WSL, run it under `xvfb-run`:
 
 ```bash
