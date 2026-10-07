@@ -21,13 +21,7 @@ import {
 import type { HostClient } from "@/host-client.ts";
 import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
-import {
-  closeEditorTabs,
-  EditorArea,
-  openEditorTab,
-  renameEditorTabs,
-  type Editors,
-} from "./editor-area.tsx";
+import { closeEditorTabs, EditorArea, renameEditorTabs, type Editors } from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
 
 interface WorkshopScreenProps {
@@ -95,7 +89,7 @@ export function WorkshopScreen({
             key={workshop.root}
             client={client}
             onOpenFile={(path) => {
-              if (editors.current !== undefined) openEditorTab(editors.current.api, path);
+              editors.current?.openFile(path);
             }}
             onOpenTerminal={(path) => {
               const title = path === "" ? workshop.name : path.slice(path.lastIndexOf("/") + 1);

@@ -40,9 +40,9 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { applyFileChange } from "@/apply-file-change.ts";
 import { entryNameError, noteFileName } from "@/entry-name.ts";
-import { renamedPath } from "@/entry-path.ts";
+import { childPath, renamedPath } from "@/entry-path.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
-import { reportError } from "@/report-error.ts";
+import { errorMessage, reportError } from "@/report-error.ts";
 import { sortEntries } from "@/sort-entries.ts";
 import { DeleteEntryDialog } from "./delete-entry-dialog.tsx";
 
@@ -73,10 +73,6 @@ function useTree(): TreeContextValue {
   const tree = useContext(TreeContext);
   if (tree === undefined) throw new Error("A tree row was rendered outside the file tree");
   return tree;
-}
-
-function childPath(folder: string, name: string): string {
-  return folder === "" ? name : `${folder}/${name}`;
 }
 
 /** What to show under a row when the host refuses a name. */
@@ -266,7 +262,7 @@ function FolderContents({
         reportError(error);
         // Shows the folder as empty instead of loading forever, until its parent hides it as unavailable.
         setEntries([]);
-        onUnavailable?.(error instanceof Error ? error.message : String(error));
+        onUnavailable?.(errorMessage(error));
       });
     return () => {
       cancelled = true;

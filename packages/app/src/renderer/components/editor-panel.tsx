@@ -4,6 +4,7 @@ import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { OpenFile, type EditorContent, type OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
+import { EditorBreadcrumbs } from "./editor-breadcrumbs.tsx";
 import { CodeEditor, type EditorConnection } from "./code-editor.tsx";
 
 type LoadState =
@@ -26,9 +27,13 @@ function unopenableMessage(error: unknown): string {
 
 interface EditorPanelProps {
   readonly client: HostClient;
+  /** Shown first in the breadcrumbs, for the workshop's root. */
+  readonly workshopName: string;
   readonly openFiles: OpenFiles;
   /** The file's protocol path, relative to the workshop root. A rename changes it while the tab stays open. */
   readonly path: string;
+  /** Opens a file from the breadcrumbs' menus, the way the file tree does. */
+  readonly onOpenFile: (path: string) => void;
   /** Closes the panel's tab, for when the file is deleted, or was already gone when the tab opened. */
   readonly onDeleted: () => void;
   /**
@@ -45,8 +50,10 @@ interface EditorPanelProps {
  */
 export function EditorPanel({
   client,
+  workshopName,
   openFiles,
   path,
+  onOpenFile,
   onDeleted,
   registerTabCloseGuard,
 }: EditorPanelProps) {
@@ -115,5 +122,17 @@ export function EditorPanel({
       },
     };
   }
-  return <CodeEditor path={path} content={state.content} connect={connect} />;
+  return (
+    <div className="flex h-full flex-col">
+      <EditorBreadcrumbs
+        client={client}
+        workshopName={workshopName}
+        path={path}
+        onOpenFile={onOpenFile}
+      />
+      <div className="min-h-0 flex-1">
+        <CodeEditor path={path} content={state.content} connect={connect} />
+      </div>
+    </div>
+  );
 }

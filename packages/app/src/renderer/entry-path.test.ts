@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAtOrInside, renamedPath } from "./entry-path.ts";
+import { ancestorFolders, isAtOrInside, renamedPath } from "./entry-path.ts";
 
 describe("renamedPath", () => {
   it("gives the renamed entry's new path", () => {
@@ -23,5 +23,18 @@ describe("isAtOrInside", () => {
 
   it("is false for a sibling whose name only starts the same", () => {
     expect(isAtOrInside("mathematics/idea.md", "math")).toBe(false);
+  });
+});
+
+describe("ancestorFolders", () => {
+  it("lists the folders above a file from the workshop root down, each with its own path", () => {
+    expect(ancestorFolders("notes/math/algebra.md")).toEqual([
+      { name: "notes", path: "notes" },
+      { name: "math", path: "notes/math" },
+    ]);
+  });
+
+  it("is empty for a file at the workshop root", () => {
+    expect(ancestorFolders("algebra.md")).toEqual([]);
   });
 });

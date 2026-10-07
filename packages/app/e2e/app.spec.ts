@@ -50,6 +50,14 @@ async function makeWorkshop(parent: string, name: string): Promise<string> {
   return root;
 }
 
+/**
+ * The sidebar header's button named after the workshop, which opens the workshop menu. An open file's breadcrumbs
+ * start with a button of the same name.
+ */
+function workshopMenuButton(page: Page, name: string): Locator {
+  return page.locator('[data-sidebar="header"]').getByRole("button", { name, exact: true });
+}
+
 test("renderer has no Node globals and a Content Security Policy", async () => {
   const electronApp = await launch(await temporaryUserData());
   try {
@@ -106,7 +114,7 @@ test("opens a workshop from a folder nested inside it", async () => {
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, nested);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "studies")).toBeVisible();
   } finally {
     await electronApp.close();
   }
@@ -121,7 +129,7 @@ test("Ctrl+B collapses and expands the sidebar", async () => {
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    const header = page.getByRole("button", { name: "studies", exact: true });
+    const header = workshopMenuButton(page, "studies");
     await expect(header).toBeInViewport();
 
     await page.keyboard.press("Control+b");
@@ -166,7 +174,7 @@ test("creates a workshop and opens it", async () => {
     await dialog.getByLabel("Name").fill("studies");
     await dialog.getByRole("button", { name: "Create" }).click();
 
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "studies")).toBeVisible();
     const generator = await stat(path.join(temporary, "studies", ".hone", "generator"));
     expect(generator.isDirectory()).toBe(true);
   } finally {
@@ -211,7 +219,7 @@ test("relaunching reopens the last workshop, unless it was deleted", async () =>
     const page = await first.firstWindow();
     await pickFolderInDialog(first, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "studies")).toBeVisible();
   } finally {
     await first.close();
   }
@@ -219,7 +227,7 @@ test("relaunching reopens the last workshop, unless it was deleted", async () =>
   const second = await launch(userData);
   try {
     const page = await second.firstWindow();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "studies")).toBeVisible();
   } finally {
     await second.close();
   }
@@ -244,12 +252,12 @@ test("opening another workshop from the sidebar menu replaces the open one", asy
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, studies);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
 
     await pickFolderInDialog(electronApp, work);
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeHidden();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
+    await expect(workshopMenuButton(page, "studies")).toBeHidden();
   } finally {
     await electronApp.close();
   }
@@ -398,11 +406,11 @@ test("the sidebar and its file tree stay visible in a narrow window", async () =
     const page = await electronApp.firstWindow();
     await pickFolderInDialog(electronApp, root);
     await page.getByRole("button", { name: "Open workshop" }).click();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
+    await expect(workshopMenuButton(page, "studies")).toBeInViewport();
 
     await resizeWindow(electronApp, 600, 600);
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(768);
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
+    await expect(workshopMenuButton(page, "studies")).toBeInViewport();
     const tree = page.getByRole("navigation", { name: "Files" });
     await expect(tree.getByRole("button", { name: ".hone" })).toBeInViewport();
   } finally {
@@ -427,10 +435,10 @@ test("the sidebar toggle hides and shows the sidebar, keeping expanded folders",
 
     const toggle = page.getByRole("button", { name: "Toggle Sidebar" });
     await toggle.click();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).not.toBeInViewport();
+    await expect(workshopMenuButton(page, "studies")).not.toBeInViewport();
 
     await toggle.click();
-    await expect(page.getByRole("button", { name: "studies", exact: true })).toBeInViewport();
+    await expect(workshopMenuButton(page, "studies")).toBeInViewport();
     await expect(tree.getByRole("button", { name: "Math" })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -540,10 +548,10 @@ test("opening another workshop closes every editor tab and shows that workshop's
       .click();
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
 
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
     await pickFolderInDialog(electronApp, work);
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
     await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
   } finally {
@@ -744,10 +752,10 @@ test("switching workshops right after typing saves the edits first", async () =>
     await editor.click();
     await page.keyboard.press("Control+End");
     await page.keyboard.type("Rings.");
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
 
-    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
     await expect(readFile(file, "utf8")).resolves.toBe("Groups.\nRings.");
   } finally {
     await electronApp.close();
@@ -1097,6 +1105,163 @@ test("deleting a folder says how many files it holds, and confirming removes it 
   }
 });
 
+/** Launches the app on a workshop with `notes/math/algebra.md` open in a tab, through the tree. */
+async function openNestedNote() {
+  const opened = await openWorkshopWith(async (workshop) => {
+    await mkdir(path.join(workshop, "notes", "math"), { recursive: true });
+    await mkdir(path.join(workshop, "notes", "archive"));
+    await writeFile(path.join(workshop, "notes", "index.md"), "Index.\n");
+    await writeFile(path.join(workshop, "notes", "math", "algebra.md"), "Groups.\n");
+    await writeFile(path.join(workshop, "notes", "math", "groups.md"), "Rings.\n");
+    await writeFile(path.join(workshop, "top.md"), "Top.\n");
+  });
+  const { page, tree } = opened;
+  await tree.getByRole("button", { name: "notes" }).click();
+  await tree.getByRole("button", { name: "math" }).click();
+  await tree.getByRole("button", { name: "algebra.md" }).click();
+  const breadcrumbs = page.getByRole("navigation", { name: "breadcrumb" });
+  await expect(breadcrumbs).toBeVisible();
+  return { ...opened, breadcrumbs };
+}
+
+test("an open file's breadcrumbs show the workshop, its folders and the file's name", async () => {
+  const { electronApp, breadcrumbs } = await openNestedNote();
+  try {
+    await expect(breadcrumbs.getByRole("listitem")).toHaveText([
+      "studies",
+      "notes",
+      "math",
+      "algebra.md",
+    ]);
+    await expect(breadcrumbs.getByRole("button")).toHaveText(["studies", "notes", "math"]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a folder segment's menu lists its entries, folders first, and opens files in tabs or focuses them", async () => {
+  const { electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveText(["archive", "math", "index.md"]);
+
+    await menu.getByRole("menuitem", { name: "math" }).click();
+    const submenu = page
+      .getByRole("menu")
+      .filter({ has: page.getByRole("menuitem", { name: "groups.md" }) });
+    await expect(submenu.getByRole("menuitem")).toHaveText(["algebra.md", "groups.md"]);
+    await submenu.getByRole("menuitem", { name: "groups.md" }).click();
+    await expect(page.getByRole("tab", { name: "groups.md" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "notes/math/groups.md" })).toContainText(
+      "Rings.",
+    );
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await page.getByRole("menuitem", { name: "algebra.md" }).click();
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(1);
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a folder's submenu says when the folder is empty, and shows the error when it can't be listed, toasting it once", async () => {
+  const { root, electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    await page.getByRole("menuitem", { name: "archive" }).click();
+    const archive = page.getByRole("menu", { name: "archive" });
+    await expect(archive.getByText("Empty folder")).toBeVisible();
+
+    // The first closes the submenu, the second the menu.
+    await page.keyboard.press("Escape");
+    await expect(archive).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "notes" })).toBeHidden();
+
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    await expect(page.getByRole("menuitem", { name: "archive" })).toBeVisible();
+    // Gone after the menu listed it, so its submenu lists a folder that no longer exists.
+    await rm(path.join(root, "notes", "archive"), { recursive: true });
+    await page.getByRole("menuitem", { name: "archive" }).press("ArrowRight");
+    await expect(archive.getByRole("alert")).toHaveText(/\S/);
+
+    // Opening it again lists it again and shows the error in the menu, but by then a second toast would have shown up.
+    await page.keyboard.press("Escape");
+    await expect(archive).toBeHidden();
+    await page.getByRole("menuitem", { name: "archive" }).press("ArrowRight");
+    await expect(archive.getByRole("alert")).toHaveText(/\S/);
+    await expect(page.getByText("Something went wrong")).toHaveCount(1);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("the workshop segment's menu lists the workshop root's entries", async () => {
+  const { electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "studies" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      ".hone",
+      "notes",
+      "top.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("renaming a folder above the open file from the tree renames its breadcrumb segment", async () => {
+  const { electronApp, page, tree, breadcrumbs } = await openNestedNote();
+  try {
+    await tree.getByRole("button", { name: "math" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    const name = tree.getByRole("textbox", { name: "Name" });
+    await name.fill("maths");
+    await name.press("Enter");
+
+    await expect(breadcrumbs.getByRole("listitem")).toHaveText([
+      "studies",
+      "notes",
+      "maths",
+      "algebra.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a file created on disk after the editor opened shows up the next time its folder's menu opens", async () => {
+  const { root, electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      "algebra.md",
+      "groups.md",
+    ]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
+
+    await writeFile(path.join(root, "notes", "math", "fields.md"), "Fields.\n");
+    await breadcrumbs.getByRole("button", { name: "math" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([
+      "algebra.md",
+      "fields.md",
+      "groups.md",
+    ]);
+  } finally {
+    await electronApp.close();
+  }
+});
+
 /**
  * The rows of the terminals titled `title`, read through xterm's accessibility tree, which exists once xterm has
  * opened: from then on, what's typed reaches the shell. A terminal hidden behind another tab has none.
@@ -1217,13 +1382,13 @@ test("Ctrl+W pressed as a restored layout's tabs show still closes the active ta
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
 
     await pickFolderInDialog(electronApp, work);
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
     await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
 
     await pressWhenTabShows(page, "algebra.md", { code: "KeyW", key: "w" });
     await pickFolderInDialog(electronApp, root);
-    await page.getByRole("button", { name: "work", exact: true }).click();
+    await workshopMenuButton(page, "work").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
     await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(0);
@@ -1354,9 +1519,9 @@ test("opening another workshop closes the terminals", async () => {
     await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
 
     await pickFolderInDialog(electronApp, other);
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
     await expect(page.getByRole("tab", { name: "studies" })).toHaveCount(0);
   } finally {
     await electronApp.close();
@@ -1497,15 +1662,15 @@ test("switching workshops keeps each one's layout", async () => {
     await moveTerminalRightOf(page, "studies", editor);
 
     await pickFolderInDialog(electronApp, work);
-    await page.getByRole("button", { name: "studies", exact: true }).click();
+    await workshopMenuButton(page, "studies").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
-    await expect(page.getByRole("button", { name: "work", exact: true })).toBeVisible();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
     // The default layout, since this workshop has none saved.
     await expect(page.getByRole("tab")).toHaveCount(1);
     await expect(page.getByRole("tab", { name: "work" })).toBeVisible();
 
     await pickFolderInDialog(electronApp, root);
-    await page.getByRole("button", { name: "work", exact: true }).click();
+    await workshopMenuButton(page, "work").click();
     await page.getByRole("menuitem", { name: "Open workshop…" }).click();
     await expect(page.getByRole("tab", { name: "algebra.md" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "studies" })).toBeVisible();
