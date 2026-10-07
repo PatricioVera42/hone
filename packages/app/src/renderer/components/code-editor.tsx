@@ -195,12 +195,12 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
       // `sliceDoc` joins lines with the line separator, where `doc.toString()` would always use `\n`.
       read: () => editorView.state.sliceDoc(),
       replace: (next) => {
-        // Reconfigured first, so the new content is split into lines by its own line endings.
+        // Reconfigured first, so the new content is split into lines by its own line endings. The history is dropped
+        // here and comes back empty below, so Ctrl+Z can't bring back the old content and save it over the new one.
         editorView.dispatch({
           effects: [lineSeparator.reconfigure(lineSeparatorFor(next)), undoHistory.reconfigure([])],
         });
         const nextLength = editorView.state.toText(next).length;
-        // The history comes back empty, so Ctrl+Z can't bring back the old content and save it over the new one.
         editorView.dispatch({
           changes: { from: 0, to: editorView.state.doc.length, insert: next },
           selection: { anchor: Math.min(editorView.state.selection.main.head, nextLength) },

@@ -106,6 +106,7 @@ for (const name of ["algebra.md", "algebra.txt"]) {
       await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\n");
       await page.keyboard.press("Control+y");
       await expect(editor).toHaveText("Groups.Rings.");
+      await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
       await page.keyboard.press("Control+z");
       await expect(editor).toHaveText("Groups.");
       await page.keyboard.press("Control+Shift+z");
@@ -257,6 +258,29 @@ test("Ctrl+Z after a note is rewritten on disk changes neither the editor nor th
     await editor.click();
     await page.keyboard.press("Control+z");
     // Long enough for an undo to reach the editor and be saved, if it happened.
+    await page.waitForTimeout(1000);
+    await expect(editor).toHaveText("Fields.");
+    await expect(readFile(file, "utf8")).resolves.toBe("Fields.\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("Ctrl+Y after a note is rewritten on disk doesn't redo an edit undone before it", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("algebra.md", "Groups.\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Rings.");
+    await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\nRings.");
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => readFile(file, "utf8")).toBe("Groups.\n");
+    await writeFile(file, "Fields.\n");
+    await expect(editor).toHaveText("Fields.");
+
+    await editor.click();
+    await page.keyboard.press("Control+y");
+    // Long enough for a redo to reach the editor and be saved, if it happened.
     await page.waitForTimeout(1000);
     await expect(editor).toHaveText("Fields.");
     await expect(readFile(file, "utf8")).resolves.toBe("Fields.\n");
