@@ -86,7 +86,7 @@
       }
     },
     {
-      "files": ["**/*.config.ts", "lint-rules/index.ts"],
+      "files": ["**/*.config.ts", "lint-rules/index.ts", "packages/app/e2e/global-setup.ts"],
       "rules": {
         "import/no-default-export": "off"
       }
