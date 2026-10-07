@@ -7,7 +7,7 @@ description: Records a study session in the project's PROGRESS.md once the user 
 
 Record what happened in the project's progress, writing only what the user confirms. Two branches: closing the current session, and reviewing the drafts left in the inbox by a quick close.
 
-`PROGRESS.md` and `progress-inbox.md` sit in the project's folder, next to its `AGENTS.md`. Write in the language set in the project's `.hone/inherited.md`, headings included; file names stay in English.
+`PROGRESS.md` and `progress-inbox.md` sit in the project's folder, next to its `AGENTS.md`. Write in the language set in the project's `.hone/inherited.md`. The layouts below are in English only as layouts: translate their headings and bold labels too. File names stay in English.
 
 ## PROGRESS.md
 

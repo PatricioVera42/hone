@@ -38,8 +38,8 @@ Every `AGENTS.md` you write is read stacked under its ancestors':
 
 ## Skill names
 
-No two skills visible from a project share a name. Before copying a library skill into a project, compare its name against the skills in the project's ancestor folders and the user's global skills, the folder names in `~/.claude/skills` and `~/.agents/skills`. On a match, ask the user for a new name, and rename both the skill's folder and its `name` field.
+No two skills visible from a project share a name. Before copying a library skill into a project, compare its name against the skills in the project's ancestor folders and the user's global skills: every folder holding a `SKILL.md` under `~/.claude/skills`, `~/.agents/skills` and `~/.config/opencode/skills`, at any depth, since OpenCode also loads nested ones such as `~/.claude/skills/synced/<id>/pdf/` (`find ~/.claude/skills ~/.agents/skills ~/.config/opencode/skills -name SKILL.md` lists them). On a match, ask the user for a new name, and rename both the skill's folder and its `name` field.
 
 ## Reading
 
-You read only inside the workshop, with two exceptions: listing the folder names in `~/.claude/skills` and `~/.agents/skills`, and searching the web for sources during `/create`, only after the user agrees to the search.
+You read only inside the workshop, with two exceptions: listing the global skills as "Skill names" says, and searching the web for sources during `/create`, only after the user agrees to the search.
