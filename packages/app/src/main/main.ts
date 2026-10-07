@@ -187,7 +187,10 @@ async function start(): Promise<void> {
   });
   ipcMain.handle("state:get-sidebar-width", () => appState.getSidebarWidth());
   ipcMain.handle("state:set-sidebar-width", (_event, width: unknown) => {
-    if (typeof width !== "number") throw new Error("setSidebarWidth needs a number width");
+    // The state file reads a width that isn't a positive number as unset, so one would erase the saved width.
+    if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) {
+      throw new Error("setSidebarWidth needs a positive width");
+    }
     return appState.setSidebarWidth(width);
   });
   ipcMain.handle("state:load-layout", (_event, root: unknown) => {

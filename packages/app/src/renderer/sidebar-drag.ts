@@ -1,3 +1,4 @@
+/** In pixels. A drag stops at it, and a drag past half of it collapses the sidebar. */
 export const minSidebarWidth = 180;
 
 /** What dragging the sidebar's edge to `pointerX`, measured from the window's left edge, does to the sidebar. */

@@ -37,8 +37,9 @@ interface WorkshopScreenProps {
 }
 
 /**
- * The open workshop: a left sidebar, whose right edge the user drags to resize it, with the file tree, whose header menu switches workshops, and the editor
- * area to its right. The toggle button in the bar above the editor area, or Ctrl+B, opens and closes the sidebar.
+ * The open workshop: a left sidebar with the file tree, whose header menu switches workshops, and the editor area to
+ * its right. The toggle button in the bar above the editor area, or Ctrl+B, opens and closes the sidebar, and
+ * dragging its right edge resizes it.
  */
 export function WorkshopScreen({
   client,

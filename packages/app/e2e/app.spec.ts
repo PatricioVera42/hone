@@ -467,7 +467,7 @@ async function dragSidebarEdgeTo(page: Page, x: number): Promise<void> {
 test("dragging the sidebar's edge resizes it, and the width comes back after relaunching", async () => {
   const { userData, electronApp, page } = await openWorkshopWith(() => Promise.resolve());
   try {
-    expect(await sidebarWidth(page)).toBe(256);
+    await expect.poll(() => sidebarWidth(page)).toBe(256);
     await dragSidebarEdgeTo(page, 340);
     await expect.poll(() => sidebarWidth(page)).toBe(340);
   } finally {
@@ -528,6 +528,9 @@ test("the sidebar's width stops at 180 px and at half the window's width", async
           (await sidebarWidth(page)) <= (await page.evaluate(() => window.innerWidth)) / 2,
       )
       .toBe(true);
+    await resizeWindow(electronApp, 1000, 650);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(windowWidth);
+    await expect.poll(() => sidebarWidth(page)).toBe(Math.round(windowWidth / 2));
   } finally {
     await electronApp.close();
   }

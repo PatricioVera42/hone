@@ -263,6 +263,13 @@ function SidebarResizeHandle() {
   const { startResizing, resizeTo, stopResizing } = useSidebar();
   const dragging = React.useRef(false);
 
+  // Both on release and on a lost capture, whichever comes first, so the drag ends once.
+  function endDrag() {
+    if (!dragging.current) return;
+    dragging.current = false;
+    stopResizing();
+  }
+
   return (
     <div
       role="separator"
@@ -282,16 +289,8 @@ function SidebarResizeHandle() {
       onPointerMove={(event) => {
         if (dragging.current) resizeTo(event.clientX);
       }}
-      onPointerUp={() => {
-        if (!dragging.current) return;
-        dragging.current = false;
-        stopResizing();
-      }}
-      onLostPointerCapture={() => {
-        if (!dragging.current) return;
-        dragging.current = false;
-        stopResizing();
-      }}
+      onPointerUp={endDrag}
+      onLostPointerCapture={endDrag}
     />
   );
 }
