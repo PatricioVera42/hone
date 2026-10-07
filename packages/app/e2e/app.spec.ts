@@ -1147,12 +1147,18 @@ test("a folder segment's menu lists its entries, folders first, and opens files 
     await expect(menu.getByRole("menuitem")).toHaveText(["archive", "math", "index.md"]);
 
     await menu.getByRole("menuitem", { name: "math" }).click();
-    const submenu = page.getByRole("menu").last();
+    const submenu = page
+      .getByRole("menu")
+      .filter({ has: page.getByRole("menuitem", { name: "groups.md" }) });
     await expect(submenu.getByRole("menuitem")).toHaveText(["algebra.md", "groups.md"]);
     await submenu.getByRole("menuitem", { name: "groups.md" }).click();
     await expect(page.getByRole("tab", { name: "groups.md" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "notes/math/groups.md" })).toContainText(
       "Rings.",
+    );
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveAttribute(
+      "aria-selected",
+      "false",
     );
 
     await breadcrumbs.getByRole("button", { name: "math" }).click();
@@ -1162,6 +1168,31 @@ test("a folder segment's menu lists its entries, folders first, and opens files 
       "aria-selected",
       "true",
     );
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a folder's submenu says when the folder is empty, and shows the error when it can't be listed", async () => {
+  const { root, electronApp, page, breadcrumbs } = await openNestedNote();
+  try {
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    await page.getByRole("menuitem", { name: "archive" }).click();
+    const archive = page.getByRole("menu", { name: "archive" });
+    await expect(archive.getByText("Empty folder")).toBeVisible();
+
+    // The first closes the submenu, the second the menu.
+    await page.keyboard.press("Escape");
+    await expect(archive).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "notes" })).toBeHidden();
+
+    await breadcrumbs.getByRole("button", { name: "notes" }).click();
+    await expect(page.getByRole("menuitem", { name: "archive" })).toBeVisible();
+    // Gone after the menu listed it, so its submenu lists a folder that no longer exists.
+    await rm(path.join(root, "notes", "archive"), { recursive: true });
+    await page.getByRole("menuitem", { name: "archive" }).press("ArrowRight");
+    await expect(archive.getByRole("alert")).toHaveText(/\S/);
   } finally {
     await electronApp.close();
   }
