@@ -82,6 +82,8 @@ export class OpenFile {
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
+  /** How many renames it followed and then moved back from, to tell which changes were reported at their target. */
+  private refusedRenames = 0;
 
   constructor(options: OpenFileOptions) {
     this.options = options;
@@ -110,14 +112,18 @@ export class OpenFile {
   /** Handles a `files.changed`, ignoring changes to other paths. */
   receive(change: FileChange): void {
     if (change.path !== this.path) return;
-    void this.enqueue(() =>
-      this.apply(decideOpenFileAction(this.state(), { kind: "change", change })),
-    );
+    const { refusedRenames } = this;
+    void this.enqueue(async () => {
+      // Reported at the target of a rename the host then refused, so it's about another entry.
+      if (refusedRenames !== this.refusedRenames) return;
+      await this.apply(decideOpenFileAction(this.state(), { kind: "change", change }));
+    });
   }
 
   /**
    * Follows a rename of the file or a folder above it, so later saves and changes use its new path. Its saves and
-   * changes wait until `answered` settles, and if it rejects, the file moves back to the path it had.
+   * changes wait until `answered` settles. If it rejects, the file moves back to the path it had, and the changes
+   * reported at the new path meanwhile are ignored.
    */
   renamed(from: string, to: string, answered: Promise<unknown>): void {
     const moved = renamedPath(this.path, from, to);
@@ -130,6 +136,7 @@ export class OpenFile {
       } catch {
         // The rename's caller handles its error; here it only means the file stayed where it was.
         this.path = original;
+        this.refusedRenames += 1;
       }
     });
   }

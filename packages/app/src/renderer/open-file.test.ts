@@ -384,6 +384,22 @@ describe("OpenFiles", () => {
     ]);
   });
 
+  it("ignores what the watcher reported at a rename's target once the host refuses the rename", async () => {
+    const { file, onDeleted } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    file.receive({ path: "archive/a.md", change: "deleted", kind: "file" });
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    await settled();
+
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
   it("starts a rename only once the one before it has answered, so a refused rename can't undo a later one", async () => {
     const { file, calls, type } = openFile();
     const files = new OpenFiles();
