@@ -93,7 +93,7 @@ export const selectWholeLines: StateCommand = ({ state, dispatch }) => {
 
 /**
  * Tab and Shift+Tab indent and dedent, and Ctrl+L selects whole lines. `defaultKeymap` leaves Tab unbound so a
- * keyboard user isn't trapped, which CodeMirror's tab-focus mode (Escape then Tab, or Ctrl+M) still covers.
+ * keyboard user isn't trapped, which Escape then Tab still covers.
  */
 export const indentKeymap: Extension = keymap.of([
   { key: "Tab", run: indentWithTabStops },

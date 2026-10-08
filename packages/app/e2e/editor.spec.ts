@@ -194,7 +194,7 @@ test("in a note Tab moves focus out of the editor instead of indenting", async (
   }
 });
 
-test("Escape then Tab moves focus out of the editor, and so does every Tab after Ctrl+M until it is pressed again", async () => {
+test("in a code file Escape then Tab moves focus out of the editor, and the next Tab indents again", async () => {
   const { file, electronApp, page, editor } = await openFileInEditor("greet.ts", "x\n");
   try {
     await editor.click();
@@ -202,18 +202,27 @@ test("Escape then Tab moves focus out of the editor, and so does every Tab after
     await page.keyboard.press("Tab");
     await expect(editor).not.toBeFocused();
     await editor.click();
-    await page.keyboard.press("Control+m");
-    await page.keyboard.press("Tab");
-    await expect(editor).not.toBeFocused();
-    await editor.click();
-    await page.keyboard.press("Tab");
-    await expect(editor).not.toBeFocused();
-    await editor.click();
-    await page.keyboard.press("Control+m");
     await page.keyboard.press("Control+Home");
     await page.keyboard.press("Tab");
     await expect(editor).toBeFocused();
     await expect.poll(() => readFile(file, "utf8")).toBe("  x\n");
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("in a code file Ctrl+M does nothing, and Tab after it still indents", async () => {
+  const { file, electronApp, page, editor } = await openFileInEditor("greet.ts", "x\n");
+  try {
+    await editor.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Control+m");
+    await page.keyboard.type("y");
+    await expect.poll(() => readFile(file, "utf8")).toBe("yx\n");
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Tab");
+    await expect(editor).toBeFocused();
+    await expect.poll(() => readFile(file, "utf8")).toBe("  yx\n");
   } finally {
     await electronApp.close();
   }
