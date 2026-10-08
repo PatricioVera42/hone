@@ -1,4 +1,10 @@
-import { defaultKeymap, history, historyKeymap, redo } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  redo,
+  toggleTabFocusMode,
+} from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import {
   HighlightStyle,
@@ -103,6 +109,12 @@ function isNote(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
 
+// Without Ctrl+M's persistent tab-focus mode, which nothing on screen shows: once on, Tab silently stops indenting.
+// Escape then Tab still moves focus out of a code file, for that one Tab.
+const keymapWithoutTabFocusToggle = defaultKeymap.filter(
+  (binding) => binding.run !== toggleTabFocusMode,
+);
+
 // Holds the language of a code file, which loads after the view is built.
 const languageCompartment = new Compartment();
 const modeCompartment = new Compartment();
@@ -179,7 +191,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           bracketClosing,
           undoHistory.of(history()),
           keymap.of([
-            ...defaultKeymap,
+            ...keymapWithoutTabFocusToggle,
             ...historyKeymap,
             // historyKeymap binds Ctrl+Shift+Z to redo only on Linux.
             { win: "Ctrl-Shift-z", run: redo, preventDefault: true },
