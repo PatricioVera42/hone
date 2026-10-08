@@ -1,4 +1,10 @@
-import { appErrorCodes, filesReadMethod, filesWriteMethod, type FileChange } from "@hone/protocol";
+import {
+  appErrorCodes,
+  filesReadMethod,
+  filesRenameMethod,
+  filesWriteMethod,
+  type FileChange,
+} from "@hone/protocol";
 import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
@@ -109,9 +115,15 @@ export class OpenFile {
     );
   }
 
-  /** Follows a rename of the file or a folder above it, so later saves and changes use its new path. */
-  renamed(from: string, to: string): void {
-    this.path = renamedPath(this.path, from, to) ?? this.path;
+  /**
+   * Follows a rename of the file or a folder above it, so later saves and changes use its new path. Returns whether
+   * the rename moved it.
+   */
+  renamed(from: string, to: string): boolean {
+    const moved = renamedPath(this.path, from, to);
+    if (moved === undefined) return false;
+    this.path = moved;
+    return true;
   }
 
   /** Drops pending edits if the file, or a folder above it, was deleted: there's nothing left to save them to. */
@@ -213,9 +225,21 @@ export class OpenFiles {
     return () => this.files.delete(file);
   }
 
-  /** Tells every file that the entry at `from` was renamed to `to`. */
-  renamed(from: string, to: string): void {
-    for (const file of this.files) file.renamed(from, to);
+  /**
+   * Renames the entry at `from` to `to` on the host, saving every file first and having those at or inside it follow.
+   * They follow before the host answers, since the watcher can report their old paths as deleted first, which would
+   * close their tabs. If the host refuses, they move back.
+   */
+  async rename(client: Pick<HostClient, "call">, from: string, to: string): Promise<void> {
+    // Saved first, so no save is on its way to the old path while the file moves.
+    await this.flush();
+    const moved = [...this.files].filter((file) => file.renamed(from, to));
+    try {
+      await client.call(filesRenameMethod, { from, to });
+    } catch (error) {
+      for (const file of moved) file.renamed(to, from);
+      throw error;
+    }
   }
 
   /** Tells every file that the entry at `path` was deleted. */

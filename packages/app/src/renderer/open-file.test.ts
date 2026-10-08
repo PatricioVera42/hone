@@ -1,6 +1,7 @@
 import {
   appErrorCodes,
   filesReadMethod,
+  filesRenameMethod,
   filesWriteMethod,
   type FileChange,
   type MethodDefinition,
@@ -8,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError } from "./host-client.ts";
-import { OpenFile } from "./open-file.ts";
+import { OpenFile, OpenFiles } from "./open-file.ts";
 
 interface RecordedCall {
   readonly method: string;
@@ -307,5 +308,55 @@ describe("OpenFile", () => {
     expect(onDeleted).not.toHaveBeenCalled();
     expect(onEditsDiscarded).not.toHaveBeenCalled();
     expect(shown).not.toHaveBeenCalled();
+  });
+});
+
+describe("OpenFiles", () => {
+  it("keeps a renamed file open when the watcher reports its old path deleted before the host answers", async () => {
+    const { file, onDeleted } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    expect(made(host.calls)).toStrictEqual([
+      { method: filesRenameMethod.name, params: { from: "notes", to: "archive" } },
+    ]);
+    file.receive({ path: "notes/a.md", change: "deleted", kind: "file" });
+    host.calls[0]?.resolve(null);
+    await renaming;
+    await settled();
+
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("leaves every file at its path when the host refuses the rename", async () => {
+    const renamed = openFile("notes/a.md");
+    const atTarget = openFile("archive/a.md");
+    const files = new OpenFiles();
+    files.add(renamed.file);
+    files.add(atTarget.file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    renamed.type("kept");
+    atTarget.type("kept");
+    void files.flush();
+    await settled();
+
+    expect(renamed.calls[0]?.params).toStrictEqual({
+      path: "notes/a.md",
+      content: "kept",
+      baseVersion: "v1",
+    });
+    expect(atTarget.calls[0]?.params).toStrictEqual({
+      path: "archive/a.md",
+      content: "kept",
+      baseVersion: "v1",
+    });
   });
 });
