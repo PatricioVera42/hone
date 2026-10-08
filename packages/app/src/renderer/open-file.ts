@@ -215,9 +215,14 @@ export class OpenFile {
   }
 }
 
-/** Every file open in the window's editors, so their pending edits can be saved before a workshop switch or the window closes. */
+/**
+ * Every file open in the window's editors, so their pending edits can be saved before a workshop switch or the window
+ * closes, and so they follow a rename.
+ */
 export class OpenFiles {
   private readonly files = new Set<OpenFile>();
+  /** The last rename asked for, settled either way, so the next one starts after it. */
+  private renaming: Promise<void> = Promise.resolve();
 
   /** Tracks a file until the returned function is called. */
   add(file: OpenFile): () => void {
@@ -226,20 +231,14 @@ export class OpenFiles {
   }
 
   /**
-   * Renames the entry at `from` to `to` on the host, saving every file first and having those at or inside it follow.
-   * They follow before the host answers, since the watcher can report their old paths as deleted first, which would
-   * close their tabs. If the host refuses, they move back.
+   * Renames the entry at `from` to `to` on the host, saving every file first and having those at or inside it follow,
+   * or stay where they were if the host refuses. Renames run one at a time, each after the one before has answered.
    */
-  async rename(client: Pick<HostClient, "call">, from: string, to: string): Promise<void> {
-    // Saved first, so no save is on its way to the old path while the file moves.
-    await this.flush();
-    const moved = [...this.files].filter((file) => file.renamed(from, to));
-    try {
-      await client.call(filesRenameMethod, { from, to });
-    } catch (error) {
-      for (const file of moved) file.renamed(to, from);
-      throw error;
-    }
+  rename(client: Pick<HostClient, "call">, from: string, to: string): Promise<void> {
+    const renamed = this.renaming.then(() => this.renameNow(client, from, to));
+    // So a refused rename can't move files back over a later one. Its caller gets the error through `renamed`.
+    this.renaming = renamed.catch(() => undefined);
+    return renamed;
   }
 
   /** Tells every file that the entry at `path` was deleted. */
@@ -255,5 +254,22 @@ export class OpenFiles {
   /** Whether any file has edits not saved yet, such as after a flush whose saves failed. */
   hasPendingEdits(): boolean {
     return [...this.files].some((file) => file.hasPendingEdits());
+  }
+
+  private async renameNow(
+    client: Pick<HostClient, "call">,
+    from: string,
+    to: string,
+  ): Promise<void> {
+    // Saved first, so no save is on its way to the old path while the file moves.
+    await this.flush();
+    // Before the host answers, since the watcher can report the old paths as deleted first, which would close their tabs.
+    const moved = [...this.files].filter((file) => file.renamed(from, to));
+    try {
+      await client.call(filesRenameMethod, { from, to });
+    } catch (error) {
+      for (const file of moved) file.renamed(to, from);
+      throw error;
+    }
   }
 }
