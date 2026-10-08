@@ -194,7 +194,7 @@ test("in a note Tab moves focus out of the editor instead of indenting", async (
   }
 });
 
-test("in a code file Escape then Tab moves focus out of the editor, and the next Tab indents again", async () => {
+test("in a code file Escape then Tab moves focus out of the editor, and Tab indents again once another key is pressed", async () => {
   const { file, electronApp, page, editor } = await openFileInEditor("greet.ts", "x\n");
   try {
     await editor.click();

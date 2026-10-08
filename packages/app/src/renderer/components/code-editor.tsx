@@ -111,7 +111,9 @@ function isNote(path: string): boolean {
 
 // Without Ctrl+M's persistent tab-focus mode, which nothing on screen shows: once on, Tab silently stops indenting.
 // Escape then Tab still moves focus out of a code file, for that one Tab.
-const editingKeymap = defaultKeymap.filter((binding) => binding.run !== toggleTabFocusMode);
+const keymapWithoutTabFocusToggle = defaultKeymap.filter(
+  (binding) => binding.run !== toggleTabFocusMode,
+);
 
 // Holds the language of a code file, which loads after the view is built.
 const languageCompartment = new Compartment();
@@ -189,7 +191,7 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
           bracketClosing,
           undoHistory.of(history()),
           keymap.of([
-            ...editingKeymap,
+            ...keymapWithoutTabFocusToggle,
             ...historyKeymap,
             // historyKeymap binds Ctrl+Shift+Z to redo only on Linux.
             { win: "Ctrl-Shift-z", run: redo, preventDefault: true },
