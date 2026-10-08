@@ -24,18 +24,24 @@ async function makeWorkshop(): Promise<string> {
 
 /**
  * Makes the next `watchWorkshop` call hold its watcher back once the initial scan is done, until `release` is
- * called. `ready` resolves when the watcher is being held.
+ * called. `ready` resolves when the watcher is being held; `closed` tells whether its `close` has finished.
  */
-function holdNextWatcher(): { ready: Promise<void>; release: () => void } {
+function holdNextWatcher(): { ready: Promise<void>; release: () => void; closed: () => boolean } {
   const ready = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
+  let closed = false;
   vi.mocked(watchWorkshop).mockImplementationOnce(async (root, onChange) => {
     const watcher = await realWatchWorkshop(root, onChange);
     ready.resolve();
     await released.promise;
-    return watcher;
+    return {
+      close: async () => {
+        await watcher.close();
+        closed = true;
+      },
+    };
   });
-  return { ready: ready.promise, release: () => released.resolve() };
+  return { ready: ready.promise, release: () => released.resolve(), closed: () => closed };
 }
 
 function execute(connection: Connection, method: string, params: unknown): Promise<unknown> {
@@ -102,10 +108,10 @@ describe("createConnection", () => {
     await openWorkshop(connection, later);
     held.release();
     await earlierOpening;
+    // Keeping the earlier workshop's watcher, instead of the later one or alongside it, leaves it open.
+    expect(held.closed()).toBe(true);
     await fs.writeFile(path.join(earlier, "stale.md"), "");
     await fs.writeFile(path.join(later, "current.md"), "");
-    // Keeping the earlier workshop's watcher instead of the later one means current.md never arrives. Keeping both
-    // would most likely report stale.md first, as it's written first, but nothing orders two watchers' reports.
     await currentReported.promise;
 
     expect(sent.join("\n")).not.toContain("stale.md");
