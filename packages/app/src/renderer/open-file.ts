@@ -1,4 +1,10 @@
-import { appErrorCodes, filesReadMethod, filesWriteMethod, type FileChange } from "@hone/protocol";
+import {
+  appErrorCodes,
+  filesReadMethod,
+  filesRenameMethod,
+  filesWriteMethod,
+  type FileChange,
+} from "@hone/protocol";
 import { isAtOrInside, renamedPath } from "@/entry-path.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { reportError } from "@/report-error.ts";
@@ -76,6 +82,8 @@ export class OpenFile {
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
+  /** How many renames it followed and then moved back from, to tell which changes were reported at their target. */
+  private refusedRenames = 0;
 
   constructor(options: OpenFileOptions) {
     this.options = options;
@@ -104,14 +112,33 @@ export class OpenFile {
   /** Handles a `files.changed`, ignoring changes to other paths. */
   receive(change: FileChange): void {
     if (change.path !== this.path) return;
-    void this.enqueue(() =>
-      this.apply(decideOpenFileAction(this.state(), { kind: "change", change })),
-    );
+    const { refusedRenames } = this;
+    void this.enqueue(async () => {
+      // Reported at the target of a rename the host then refused, so it's about another entry.
+      if (refusedRenames !== this.refusedRenames) return;
+      await this.apply(decideOpenFileAction(this.state(), { kind: "change", change }));
+    });
   }
 
-  /** Follows a rename of the file or a folder above it, so later saves and changes use its new path. */
-  renamed(from: string, to: string): void {
-    this.path = renamedPath(this.path, from, to) ?? this.path;
+  /**
+   * Follows a rename of the file or a folder above it, so later saves and changes use its new path. Its saves and
+   * changes wait until `answered` settles. If it rejects, the file moves back to the path it had, and the changes
+   * reported at the new path meanwhile are ignored.
+   */
+  renamed(from: string, to: string, answered: Promise<unknown>): void {
+    const moved = renamedPath(this.path, from, to);
+    if (moved === undefined) return;
+    const original = this.path;
+    this.path = moved;
+    void this.enqueue(async () => {
+      try {
+        await answered;
+      } catch {
+        // The rename's caller handles its error; here it only means the file stayed where it was.
+        this.path = original;
+        this.refusedRenames += 1;
+      }
+    });
   }
 
   /** Drops pending edits if the file, or a folder above it, was deleted: there's nothing left to save them to. */
@@ -203,9 +230,14 @@ export class OpenFile {
   }
 }
 
-/** Every file open in the window's editors, so their pending edits can be saved before a workshop switch or the window closes. */
+/**
+ * Every file open in the window's editors, so their pending edits can be saved before a workshop switch or the window
+ * closes, and so they follow a rename.
+ */
 export class OpenFiles {
   private readonly files = new Set<OpenFile>();
+  /** The last rename asked for, settled either way, so the next one starts after it. */
+  private renaming: Promise<void> = Promise.resolve();
 
   /** Tracks a file until the returned function is called. */
   add(file: OpenFile): () => void {
@@ -213,9 +245,16 @@ export class OpenFiles {
     return () => this.files.delete(file);
   }
 
-  /** Tells every file that the entry at `from` was renamed to `to`. */
-  renamed(from: string, to: string): void {
-    for (const file of this.files) file.renamed(from, to);
+  /**
+   * Renames the entry at `from` to `to` on the host, saving every file first and having those at or inside it follow,
+   * or stay where they were if the host refuses. Their saves wait for the answer. Renames run one at a time, each
+   * after the one before has answered.
+   */
+  rename(client: Pick<HostClient, "call">, from: string, to: string): Promise<void> {
+    const renamed = this.renaming.then(() => this.renameNow(client, from, to));
+    // So a refused rename can't move files back over a later one. Its caller gets the error through `renamed`.
+    this.renaming = renamed.catch(() => undefined);
+    return renamed;
   }
 
   /** Tells every file that the entry at `path` was deleted. */
@@ -231,5 +270,18 @@ export class OpenFiles {
   /** Whether any file has edits not saved yet, such as after a flush whose saves failed. */
   hasPendingEdits(): boolean {
     return [...this.files].some((file) => file.hasPendingEdits());
+  }
+
+  private async renameNow(
+    client: Pick<HostClient, "call">,
+    from: string,
+    to: string,
+  ): Promise<void> {
+    // Saved first, so no save is on its way to the old path while the file moves.
+    await this.flush();
+    const answered = client.call(filesRenameMethod, { from, to });
+    // Before the host answers, since the watcher can report the old paths as deleted first, which would close their tabs.
+    for (const file of this.files) file.renamed(from, to, answered);
+    await answered;
   }
 }

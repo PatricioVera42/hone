@@ -1,6 +1,7 @@
 import {
   appErrorCodes,
   filesReadMethod,
+  filesRenameMethod,
   filesWriteMethod,
   type FileChange,
   type MethodDefinition,
@@ -8,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@/components/ui/toast.tsx";
 import { HostCallError } from "./host-client.ts";
-import { OpenFile } from "./open-file.ts";
+import { OpenFile, OpenFiles } from "./open-file.ts";
 
 interface RecordedCall {
   readonly method: string;
@@ -284,7 +285,7 @@ describe("OpenFile", () => {
 
   it("saves to the new path after a rename of a folder above it", async () => {
     const { file, calls, type } = openFile();
-    file.renamed("notes", "archive");
+    file.renamed("notes", "archive", Promise.resolve());
     type("moved");
     void file.flush();
     await settled();
@@ -307,5 +308,120 @@ describe("OpenFile", () => {
     expect(onDeleted).not.toHaveBeenCalled();
     expect(onEditsDiscarded).not.toHaveBeenCalled();
     expect(shown).not.toHaveBeenCalled();
+  });
+});
+
+describe("OpenFiles", () => {
+  it("keeps a renamed file open when the watcher reports its old path deleted before the host answers", async () => {
+    const { file, onDeleted } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    expect(made(host.calls)).toStrictEqual([
+      { method: filesRenameMethod.name, params: { from: "notes", to: "archive" } },
+    ]);
+    file.receive({ path: "notes/a.md", change: "deleted", kind: "file" });
+    host.calls[0]?.resolve(null);
+    await renaming;
+    await settled();
+
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("leaves every file at its path when the host refuses the rename", async () => {
+    const atSource = openFile("notes/a.md");
+    const atTarget = openFile("archive/a.md");
+    const files = new OpenFiles();
+    files.add(atSource.file);
+    files.add(atTarget.file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    atSource.type("kept");
+    atTarget.type("kept");
+    void files.flush();
+    await settled();
+
+    expect(atSource.calls[0]?.params).toStrictEqual({
+      path: "notes/a.md",
+      content: "kept",
+      baseVersion: "v1",
+    });
+    expect(atTarget.calls[0]?.params).toStrictEqual({
+      path: "archive/a.md",
+      content: "kept",
+      baseVersion: "v1",
+    });
+  });
+
+  it("holds a moved file's saves until the host answers, so a refused rename never writes to its target", async () => {
+    const { file, calls, type } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    type("typed while renaming");
+    vi.advanceTimersByTime(500);
+    await settled();
+    expect(calls).toStrictEqual([]);
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    await settled();
+
+    expect(made(calls)).toStrictEqual([
+      {
+        method: filesWriteMethod.name,
+        params: { path: "notes/a.md", content: "typed while renaming", baseVersion: "v1" },
+      },
+    ]);
+  });
+
+  it("ignores what the watcher reported at a rename's target once the host refuses the rename", async () => {
+    const { file, onDeleted } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    file.receive({ path: "archive/a.md", change: "deleted", kind: "file" });
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    await settled();
+
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("starts a rename only once the one before it has answered, so a refused rename can't undo a later one", async () => {
+    const { file, calls, type } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const refused = files.rename(host.client, "notes", "archive");
+    const accepted = files.rename(host.client, "notes", "box");
+    await settled();
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(refused).rejects.toThrow("Already exists.");
+    await settled();
+    host.calls[1]?.resolve(null);
+    await accepted;
+    type("kept");
+    void files.flush();
+    await settled();
+
+    expect(calls[0]?.params).toStrictEqual({
+      path: "box/a.md",
+      content: "kept",
+      baseVersion: "v1",
+    });
   });
 });

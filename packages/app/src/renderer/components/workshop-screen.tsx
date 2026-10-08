@@ -1,4 +1,4 @@
-import { filesDeleteMethod, filesRenameMethod, type WorkshopInfo } from "@hone/protocol";
+import { filesDeleteMethod, type WorkshopInfo } from "@hone/protocol";
 import { useRef } from "react";
 import {
   DropdownMenu,
@@ -54,11 +54,7 @@ export function WorkshopScreen({
   const editors = useRef<Editors>(undefined);
 
   async function renameEntry(from: string, to: string): Promise<void> {
-    // Saved first, so no save is on its way to the old path while the file moves.
-    await openFiles.flush();
-    await client.call(filesRenameMethod, { from, to });
-    // Before the watcher reports the old paths as deleted, which would otherwise close their tabs.
-    openFiles.renamed(from, to);
+    await openFiles.rename(client, from, to);
     if (editors.current !== undefined) renameEditorTabs(editors.current.api, from, to);
   }
 

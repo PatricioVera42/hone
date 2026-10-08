@@ -4,16 +4,44 @@ import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConnection, type Connection } from "./handlers.ts";
+import { watchWorkshop } from "./watch-workshop.ts";
 
-async function makeWorkshop(files = 0): Promise<string> {
+// The real watcher, wrapped so a test can hold one open's watcher back and so decide which open finishes first.
+vi.mock(import("./watch-workshop.ts"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, watchWorkshop: vi.fn(actual.watchWorkshop) };
+});
+
+const { watchWorkshop: realWatchWorkshop } = await vi.importActual<{
+  watchWorkshop: typeof watchWorkshop;
+}>("./watch-workshop.ts");
+
+async function makeWorkshop(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "hone-workshop-"));
   await fs.mkdir(path.join(root, ".hone", "generator"), { recursive: true });
-  await Promise.all(
-    Array.from({ length: files }, (_, index) =>
-      fs.writeFile(path.join(root, `file${String(index)}.md`), ""),
-    ),
-  );
   return root;
+}
+
+/**
+ * Makes the next `watchWorkshop` call hold its watcher back once the initial scan is done, until `release` is
+ * called. `ready` resolves when the watcher is being held; `closed` tells whether its `close` has finished.
+ */
+function holdNextWatcher(): { ready: Promise<void>; release: () => void; closed: () => boolean } {
+  const ready = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  let closed = false;
+  vi.mocked(watchWorkshop).mockImplementationOnce(async (root, onChange) => {
+    const watcher = await realWatchWorkshop(root, onChange);
+    ready.resolve();
+    await released.promise;
+    return {
+      close: async () => {
+        await watcher.close();
+        closed = true;
+      },
+    };
+  });
+  return { ready: ready.promise, release: () => released.resolve(), closed: () => closed };
 }
 
 function execute(connection: Connection, method: string, params: unknown): Promise<unknown> {
@@ -66,19 +94,26 @@ describe("createConnection", () => {
 
   it("keeps watching the workshop opened last when an earlier open finishes after it", async () => {
     const sent: string[] = [];
-    connection = createConnection((message) => sent.push(message));
-    // The first workshop's initial scan takes longer, so its open finishes second.
-    const slow = await makeWorkshop(3000);
-    const fast = await makeWorkshop();
+    const currentReported = Promise.withResolvers<void>();
+    connection = createConnection((message) => {
+      sent.push(message);
+      if (message.includes("current.md")) currentReported.resolve();
+    });
+    const earlier = await makeWorkshop();
+    const later = await makeWorkshop();
 
-    const slowOpening = openWorkshop(connection, slow);
-    await openWorkshop(connection, fast);
-    await slowOpening;
-    await fs.writeFile(path.join(slow, "stale.md"), "");
-    await fs.writeFile(path.join(fast, "current.md"), "");
-    await setTimeout(settleMs);
+    const held = holdNextWatcher();
+    const earlierOpening = openWorkshop(connection, earlier);
+    await held.ready;
+    await openWorkshop(connection, later);
+    held.release();
+    await earlierOpening;
+    // Keeping the earlier workshop's watcher, instead of the later one or alongside it, leaves it open.
+    expect(held.closed()).toBe(true);
+    await fs.writeFile(path.join(earlier, "stale.md"), "");
+    await fs.writeFile(path.join(later, "current.md"), "");
+    await currentReported.promise;
 
-    expect(sent.join("\n")).toContain("current.md");
     expect(sent.join("\n")).not.toContain("stale.md");
   });
 
