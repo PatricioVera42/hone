@@ -285,7 +285,7 @@ describe("OpenFile", () => {
 
   it("saves to the new path after a rename of a folder above it", async () => {
     const { file, calls, type } = openFile();
-    file.renamed("notes", "archive");
+    file.renamed("notes", "archive", Promise.resolve());
     type("moved");
     void file.flush();
     await settled();
@@ -358,6 +358,30 @@ describe("OpenFiles", () => {
       content: "kept",
       baseVersion: "v1",
     });
+  });
+
+  it("holds a moved file's saves until the host answers, so a refused rename never writes to its target", async () => {
+    const { file, calls, type } = openFile();
+    const files = new OpenFiles();
+    files.add(file);
+    const host = recordingClient();
+
+    const renaming = files.rename(host.client, "notes", "archive");
+    await settled();
+    type("typed while renaming");
+    vi.advanceTimersByTime(500);
+    await settled();
+    expect(calls).toStrictEqual([]);
+    host.calls[0]?.reject(new HostCallError(appErrorCodes.AlreadyExists, "Already exists."));
+    await expect(renaming).rejects.toThrow("Already exists.");
+    await settled();
+
+    expect(made(calls)).toStrictEqual([
+      {
+        method: filesWriteMethod.name,
+        params: { path: "notes/a.md", content: "typed while renaming", baseVersion: "v1" },
+      },
+    ]);
   });
 
   it("starts a rename only once the one before it has answered, so a refused rename can't undo a later one", async () => {

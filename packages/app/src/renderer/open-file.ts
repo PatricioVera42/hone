@@ -116,14 +116,22 @@ export class OpenFile {
   }
 
   /**
-   * Follows a rename of the file or a folder above it, so later saves and changes use its new path. Returns whether
-   * the rename moved it.
+   * Follows a rename of the file or a folder above it, so later saves and changes use its new path. Its saves and
+   * changes wait until `answered` settles, and if it rejects, the file moves back to the path it had.
    */
-  renamed(from: string, to: string): boolean {
+  renamed(from: string, to: string, answered: Promise<unknown>): void {
     const moved = renamedPath(this.path, from, to);
-    if (moved === undefined) return false;
+    if (moved === undefined) return;
+    const original = this.path;
     this.path = moved;
-    return true;
+    void this.enqueue(async () => {
+      try {
+        await answered;
+      } catch {
+        // The rename's caller handles its error; here it only means the file stayed where it was.
+        this.path = original;
+      }
+    });
   }
 
   /** Drops pending edits if the file, or a folder above it, was deleted: there's nothing left to save them to. */
@@ -232,7 +240,8 @@ export class OpenFiles {
 
   /**
    * Renames the entry at `from` to `to` on the host, saving every file first and having those at or inside it follow,
-   * or stay where they were if the host refuses. Renames run one at a time, each after the one before has answered.
+   * or stay where they were if the host refuses. Their saves wait for the answer. Renames run one at a time, each
+   * after the one before has answered.
    */
   rename(client: Pick<HostClient, "call">, from: string, to: string): Promise<void> {
     const renamed = this.renaming.then(() => this.renameNow(client, from, to));
@@ -263,13 +272,9 @@ export class OpenFiles {
   ): Promise<void> {
     // Saved first, so no save is on its way to the old path while the file moves.
     await this.flush();
+    const answered = client.call(filesRenameMethod, { from, to });
     // Before the host answers, since the watcher can report the old paths as deleted first, which would close their tabs.
-    const moved = [...this.files].filter((file) => file.renamed(from, to));
-    try {
-      await client.call(filesRenameMethod, { from, to });
-    } catch (error) {
-      for (const file of moved) file.renamed(to, from);
-      throw error;
-    }
+    for (const file of this.files) file.renamed(from, to, answered);
+    await answered;
   }
 }
