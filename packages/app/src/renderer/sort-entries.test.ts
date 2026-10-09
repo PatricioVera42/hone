@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sortEntries } from "./sort-entries.ts";
 
 describe("sortEntries", () => {
-  it("puts folders first, then files, each alphabetical ignoring case", () => {
+  it("puts folders first, then files, ignoring case", () => {
     const sorted = sortEntries([
       { name: "b.md", kind: "file" },
       { name: "Zeta", kind: "folder" },
@@ -27,5 +27,18 @@ describe("sortEntries", () => {
     const copy = [...entries];
     sortEntries(entries);
     expect(entries).toStrictEqual(copy);
+  });
+
+  it("respects the natural order", () => {
+    const sorted = sortEntries([
+      { name: "f2.md", kind: "file" },
+      { name: "f10.md", kind: "file" },
+      { name: "f1.md", kind: "file" },
+    ]);
+    expect(sorted).toStrictEqual([
+      { name: "f1.md", kind: "file" },
+      { name: "f2.md", kind: "file" },
+      { name: "f10.md", kind: "file" },
+    ]);
   });
 });
