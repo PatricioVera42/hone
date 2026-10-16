@@ -1,5 +1,5 @@
 import { filesDeleteMethod, type WorkshopInfo } from "@hone/protocol";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +60,22 @@ export function WorkshopScreen({
   onCreateWorkshop,
 }: WorkshopScreenProps) {
   const editors = useRef<Editors>(undefined);
+  // What the tree asked of the editors before the editor area was ready, which waits for the saved layout. Run once it is.
+  const askedEarly = useRef<((editors: Editors) => void)[]>([]);
+
+  function withEditors(action: (editors: Editors) => void): void {
+    if (editors.current === undefined) askedEarly.current.push(action);
+    else action(editors.current);
+  }
+
+  // This component outlives a workshop switch, but the editors and what was asked of them belong to one workshop.
+  useEffect(
+    () => () => {
+      editors.current = undefined;
+      askedEarly.current = [];
+    },
+    [workshop.root],
+  );
 
   async function renameEntry(from: string, to: string): Promise<void> {
     await openFiles.rename(client, from, to);
@@ -116,11 +132,15 @@ export function WorkshopScreen({
             key={workshop.root}
             client={client}
             onOpenFile={(path) => {
-              editors.current?.openFile(path);
+              withEditors((ready) => {
+                ready.openFile(path);
+              });
             }}
             onOpenTerminal={(path) => {
               const title = path === "" ? workshop.name : path.slice(path.lastIndexOf("/") + 1);
-              editors.current?.openTerminal(path, title);
+              withEditors((ready) => {
+                ready.openTerminal(path, title);
+              });
             }}
             onRename={renameEntry}
             onDelete={deleteEntry}
@@ -145,6 +165,7 @@ export function WorkshopScreen({
             layouts={layouts}
             onReady={(api) => {
               editors.current = api;
+              for (const action of askedEarly.current.splice(0)) action(api);
             }}
           />
         </div>

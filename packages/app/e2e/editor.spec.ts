@@ -42,6 +42,48 @@ test("clicking a note opens it in an editor tab once, and Ctrl+W closes it", asy
   }
 });
 
+test("a note clicked in the tree before the editor area is ready opens once it is", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const root = await makeWorkshop(temporary, "studies");
+  await writeFile(path.join(root, "algebra.md"), "# Algebra\n\nGroups and rings.\n");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    // The editor area waits for the saved layout, so it is ready after the tree. Held until the click has landed.
+    await electronApp.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("state:load-layout");
+      ipcMain.handle(
+        "state:load-layout",
+        () =>
+          new Promise((resolve) => {
+            Reflect.set(globalThis, "releaseLayout", resolve);
+          }),
+      );
+    });
+    await pickFolderInDialog(electronApp, root);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await page
+      .getByRole("navigation", { name: "Files" })
+      .getByRole("button", { name: "algebra.md" })
+      .click();
+    await expect
+      .poll(() => electronApp.evaluate(() => Reflect.has(globalThis, "releaseLayout")))
+      .toBe(true);
+    await electronApp.evaluate(() => {
+      const release: unknown = Reflect.get(globalThis, "releaseLayout");
+      if (typeof release === "function") Reflect.apply(release, undefined, []);
+    });
+
+    await expect(page.getByRole("textbox", { name: "algebra.md" })).toContainText(
+      "Groups and rings.",
+    );
+    await expect(page.getByRole("tab", { name: "algebra.md" })).toHaveCount(1);
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("a binary file shows a message instead of an editor", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
   const root = await makeWorkshop(temporary, "studies");
