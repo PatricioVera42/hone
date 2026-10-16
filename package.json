@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @hone/app dev",
     "build": "pnpm --filter @hone/app build",
     "test:e2e": "pnpm --filter @hone/app test:e2e",
+    "verify": "node packages/app/e2e/verify.ts",
     "typecheck": "tsc -b",
     "format": "oxfmt",
     "lint": "oxfmt --check && oxlint --type-aware --deny-warnings --report-unused-disable-directives",
