@@ -18,7 +18,7 @@ pnpm workspace: `packages/app` (Electron window), `packages/host` (runs in WSL) 
 
 ## Ways of working
 
-How a change is planned and built is open: skills like `/triage`, `/to-spec`, `/to-tickets` and `/implement` are tools to pick per task, and new ways of working with agents are welcome. Every change keeps these:
+How a change is planned and built is open: skills like `/triage`, `/to-spec`, `/to-tickets` and `/work-tickets` are tools to pick per task, and new ways of working with agents are welcome. Every change keeps these:
 
 - Code reaches `main` through a pull request with green CI. Docs can go straight to `main`.
 - Patricio merges pull requests that add features.
