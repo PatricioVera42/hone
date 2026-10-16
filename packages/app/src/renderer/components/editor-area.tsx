@@ -12,6 +12,12 @@ import {
 } from "dockview-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu.tsx";
+import {
   editorPanelParamsSchema,
   isRestorableLayout,
   terminalPanelParamsSchema,
@@ -23,6 +29,7 @@ import type { HostClient } from "@/host-client.ts";
 import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
+import { tabsToClose, type CloseAction } from "@/tabs-to-close.ts";
 import { EditorPanel } from "./editor-panel.tsx";
 import { TerminalPanel } from "./terminal-panel.tsx";
 
@@ -97,15 +104,83 @@ function TerminalPanelFromLayout({ api, params }: IDockviewPanelProps<TerminalPa
 
 const components = { editor: EditorPanelFromLayout, terminal: TerminalPanelFromLayout };
 
-/** Dockview's tab, whose close button and middle click go through {@link closeTab}. */
+/**
+ * Closes the tabs of `clicked`'s group that `action` names, each through {@link closeTab}. If that closes the group's
+ * active tab, `clicked` takes the focus when it stays open.
+ */
+async function closeTabsOfGroup(
+  tabCloseGuards: TabCloseGuards,
+  action: CloseAction,
+  clicked: IDockviewPanel,
+): Promise<void> {
+  const { group } = clicked;
+  const activeBefore = group.activePanel;
+  const closing = tabsToClose(action, group.panels, clicked, isTerminal);
+  await Promise.all(closing.map((panel) => closeTab(tabCloseGuards, panel.api)));
+  if (
+    activeBefore !== undefined &&
+    closing.includes(activeBefore) &&
+    group.panels.includes(clicked)
+  ) {
+    clicked.api.setActive();
+  }
+}
+
+/** Which of the group's tabs each bulk item of the tab menu would close. */
+interface BulkCounts {
+  readonly others: number;
+  readonly right: number;
+  readonly all: number;
+}
+
+function bulkCounts(clicked: IDockviewPanel): BulkCounts {
+  const count = (action: CloseAction) =>
+    tabsToClose(action, clicked.group.panels, clicked, isTerminal).length;
+  return { others: count("others"), right: count("right"), all: count("all") };
+}
+
+/**
+ * Dockview's tab, whose close button and middle click go through {@link closeTab}. Its context menu closes tabs of the
+ * tab's group.
+ */
 function Tab(props: IDockviewPanelHeaderProps) {
   const context = useContext(EditorAreaContext);
   if (context === undefined) throw new Error("A tab was rendered outside the editor area");
+  const { tabCloseGuards } = context;
+  const [counts, setCounts] = useState<BulkCounts>({ others: 0, right: 0, all: 0 });
+  const panel = props.containerApi.getPanel(props.api.id);
+
+  function closeItems(action: CloseAction): void {
+    if (panel !== undefined) void closeTabsOfGroup(tabCloseGuards, action, panel);
+  }
+
   return (
-    <DockviewDefaultTab
-      {...props}
-      closeActionOverride={() => void closeTab(context.tabCloseGuards, props.api)}
-    />
+    <ContextMenu>
+      {/* Leaves the tab's layout alone, so dockview sizes it as it would without the menu. */}
+      <ContextMenuTrigger
+        render={<div className="contents" />}
+        onContextMenu={() => {
+          if (panel !== undefined) setCounts(bulkCounts(panel));
+        }}
+      >
+        <DockviewDefaultTab
+          {...props}
+          closeActionOverride={() => void closeTab(tabCloseGuards, props.api)}
+        />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => closeItems("close")}>Close</ContextMenuItem>
+        <ContextMenuItem disabled={counts.others === 0} onClick={() => closeItems("others")}>
+          Close Others
+        </ContextMenuItem>
+        <ContextMenuItem disabled={counts.right === 0} onClick={() => closeItems("right")}>
+          Close to the Right
+        </ContextMenuItem>
+        <ContextMenuItem disabled={counts.all === 0} onClick={() => closeItems("all")}>
+          Close All
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
