@@ -15,6 +15,7 @@ Findings go to `research/`; anything that changes a decision becomes an ADR.
 2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues. Done: spec #1, tickets #2 to #12, all `ready-for-agent`.
 3. The steps in "Before the first agent loop", then the first loop on a small ticket. The loop starts with #2. Done: stage 1 was implemented through the loop.
 4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), spec #87, and its prompts are written by hand instead of through Sandcastle.
+5. Plan live preview, the first of stage 4's note-taking features, with `grilling`. Done on 2026-10-16: tickets #131 to #135 (headings and inline formatting, then lists and code blocks, the preview/text switch, opening links in the browser, and tables). Next: wikilinks in a session of their own, starting from how Hone resolves a link with a folder in it (#112).
 
 ## Before the first agent loop
 
@@ -60,6 +61,11 @@ A note-taking app with an integrated terminal and the agent workflow (generator,
 - Graph view, then Mermaid diagrams.
 - Themes: a section in the app settings to pick one of 7 or 8 built-in themes or a custom one, with instructions for writing your own. Each theme is a CSS file that sets shadcn's variables, which color the whole app (ADR 0008). The editor's look (syntax colors, note width, active line) can be set separately for notes and code. Stage 1 ships dark only. The first two built-in themes are Tokyo Night, which becomes Hone's dark theme (#81), and Catppuccin Mocha, picked after comparing palettes on a prototype.
 - Optional manual save (Ctrl+S) instead of autosave.
+- A setting for whether notes open in live preview or as text, in the same settings section as themes. Until then every note opens in live preview.
+- Remember each tab's live preview or text mode across restarts, along with the layout.
+- `==highlight==` in live preview. It's Obsidian syntax, not GFM, so the Markdown parser needs an extension for it.
+- A properties view for a note's YAML frontmatter, as in Obsidian. Live preview shows it as plain YAML.
+- Editable table cells in live preview. Until then, clicking a rendered table shows its Markdown.
 - Tell notes apart visually from agent files (`AGENTS.md`, `PROGRESS.md`, skills) in the tree.
 - Code editing close to VS Code: LSP (autocomplete, errors, go to definition), debugger and visual git.
 - The app notices when a library skill changed and shows the diff in every project that copied it.
