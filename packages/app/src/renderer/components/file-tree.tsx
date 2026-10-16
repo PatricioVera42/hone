@@ -6,7 +6,12 @@ import {
   type FileChange,
   type FileEntry,
 } from "@hone/protocol";
-import { ArrowRight01Icon, File01Icon, Folder01Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowRight01Icon,
+  File01Icon,
+  Folder01Icon,
+  FolderOpenIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createContext,
@@ -41,6 +46,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { applyFileChange } from "@/apply-file-change.ts";
 import { entryNameError, noteFileName } from "@/entry-name.ts";
 import { childPath, renamedPath } from "@/entry-path.ts";
+import { fileIcon } from "@/file-icon.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { errorMessage, reportError } from "@/report-error.ts";
 import { sortEntries } from "@/sort-entries.ts";
@@ -334,7 +340,7 @@ function FolderContents({
               >
                 {/* Lines the file up with its sibling folders' icons, which follow a chevron. */}
                 <span aria-hidden className="size-4 shrink-0" />
-                <HugeiconsIcon icon={File01Icon} strokeWidth={2} />
+                <HugeiconsIcon icon={fileIcon(entry.name)} strokeWidth={2} />
                 <span>{entry.name}</span>
               </SidebarMenuButton>
             )}
@@ -409,7 +415,7 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
             strokeWidth={2}
             className={expanded ? "rotate-90 transition-transform" : "transition-transform"}
           />
-          <HugeiconsIcon icon={Folder01Icon} strokeWidth={2} />
+          <HugeiconsIcon icon={expanded ? FolderOpenIcon : Folder01Icon} strokeWidth={2} />
           <span>{name}</span>
         </SidebarMenuButton>
       )}
