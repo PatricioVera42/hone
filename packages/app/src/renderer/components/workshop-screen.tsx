@@ -60,6 +60,8 @@ export function WorkshopScreen({
   onCreateWorkshop,
 }: WorkshopScreenProps) {
   const editors = useRef<Editors>(undefined);
+  // Files clicked in the tree before the editor area is ready, which waits for the saved layout. Opened once it is.
+  const openedEarly = useRef<string[]>([]);
 
   async function renameEntry(from: string, to: string): Promise<void> {
     await openFiles.rename(client, from, to);
@@ -116,7 +118,8 @@ export function WorkshopScreen({
             key={workshop.root}
             client={client}
             onOpenFile={(path) => {
-              editors.current?.openFile(path);
+              if (editors.current === undefined) openedEarly.current.push(path);
+              else editors.current.openFile(path);
             }}
             onOpenTerminal={(path) => {
               const title = path === "" ? workshop.name : path.slice(path.lastIndexOf("/") + 1);
@@ -145,6 +148,7 @@ export function WorkshopScreen({
             layouts={layouts}
             onReady={(api) => {
               editors.current = api;
+              for (const path of openedEarly.current.splice(0)) api.openFile(path);
             }}
           />
         </div>
