@@ -95,6 +95,8 @@ async function sidebarWidth(page: Page): Promise<number> {
 
 /** Drags the sidebar's right edge to `x`, measured from the window's left edge, like a user would. */
 async function dragSidebarEdgeTo(page: Page, x: number): Promise<void> {
+  // A reopened sidebar slides in from the left for 200 ms, its edge moving under the pointer until it's done.
+  await expect.poll(async () => (await boxOf(sidebarContainer(page))).x).toBe(0);
   const edge = await boxOf(page.getByRole("separator", { name: "Resize sidebar" }));
   await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2);
   await page.mouse.down();
