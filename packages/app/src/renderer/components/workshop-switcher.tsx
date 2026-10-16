@@ -42,12 +42,11 @@ function warnIfOnWindowsDisk(workshop: WorkshopInfo): void {
 
 /** Tells the user the workshop that contains `folder` was opened, since they picked a folder inside it. */
 function noteWorkshopContaining(folder: string, workshop: WorkshopInfo): void {
-  const picked = folder.length > 1 ? folder.replace(/\/+$/, "") : folder;
-  if (picked === workshop.root) return;
+  if (folder === workshop.root) return;
   toast.add({
     type: "info",
     title: `Opened the workshop ${workshop.name}`,
-    description: `${picked.slice(picked.lastIndexOf("/") + 1)} is inside it.`,
+    description: `${folder.slice(folder.lastIndexOf("/") + 1)} is inside it.`,
   });
 }
 
