@@ -38,39 +38,19 @@ Create a workshop from the welcome screen, open a terminal in its `.hone/generat
 
 ## Development
 
-`pnpm check` runs typecheck, format check, lint, Knip and the tests, and must pass before every commit. Code follows [CODING_STANDARDS.md](CODING_STANDARDS.md).
+`pnpm check` runs typecheck, format check, lint, Knip and the unit tests. CI runs it, plus the end-to-end tests, on every pull request. Code follows [CODING_STANDARDS.md](CODING_STANDARDS.md).
+
+### Verifying a change
+
+`pnpm verify run <journey>` drives the real app through a user journey and keeps the evidence: ARIA snapshots, screenshots and the files it left on disk. The [`verify-hone`](.claude/skills/verify-hone/SKILL.md) skill explains how to write a journey and what counts as proof.
 
 ### End-to-end tests
 
-`pnpm test:e2e` runs Playwright against the built app, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does. Playwright's global setup (`e2e/global-setup.ts`) runs `pnpm build` first on every run, even a filtered `playwright test -g`, so the tests never drive a stale build.
+`pnpm test:e2e` runs Playwright against the built app, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does. Playwright's global setup (`e2e/global-setup.ts`) runs `pnpm build` first on every run, so the tests never drive a stale build. Extra arguments go to Playwright, as in `pnpm test:e2e -g "renames"`.
 
-The specs in `packages/app/e2e` are one file per area of the app (workshops, file tree, editor and so on), so a ticket touches only its area's file. Helpers that more than one spec uses live in `helpers.ts`; one used by a single spec stays in that spec.
+The script runs Playwright under `xvfb-run`, a virtual display, and unsets `WAYLAND_DISPLAY` so Electron doesn't draw on WSLg's real display instead. The tests launch Electron with `--no-sandbox`; the app itself never turns its sandbox off (`hone/electron-security` guards against that).
 
-Playwright needs a display. Locally in WSL, run it under `xvfb-run`:
-
-```bash
-xvfb-run pnpm test:e2e
-```
-
-In the Sandcastle container it's the same command, since the image already has `xvfb` (`.sandcastle/Dockerfile`). Electron's own sandbox can't start there (no `root`-owned SUID helper, and Docker blocks the user namespaces it would otherwise use), so the tests launch Electron with `--no-sandbox`; the app itself never turns its sandbox off (`hone/electron-security` guards against that).
-
-### Agent loop
-
-Tickets labeled `ready-for-agent` are implemented by Claude Code inside a Docker container, through [Sandcastle](https://github.com/mattpocock/sandcastle) ([workflow](docs/workflow.md)). The harness in `.sandcastle/main.ts` runs the agent on branch `agent/issue-<n>`, then runs `pnpm check` itself. Only if it passes does it push the branch and open a pull request.
-
-Setup, once:
-
-1. Install Docker in WSL.
-2. Run `claude setup-token` and put the token in `.sandcastle/.env` as `CLAUDE_CODE_OAUTH_TOKEN` (see `.sandcastle/.env.example`).
-3. Build the image with `pnpm sandcastle:image`, and again after changing `.sandcastle/Dockerfile`.
-
-Then, for each ticket:
-
-```bash
-pnpm sandcastle <issue number>
-```
-
-The agent gets no GitHub credentials; the harness reads the issue and opens the pull request with your `gh` login. Your skills in `~/.agents/skills` are mounted read-only into the container.
+The specs in `packages/app/e2e` are one file per area of the app (workshops, file tree, editor and so on). Helpers that more than one spec uses live in `helpers.ts`; one used by a single spec stays in that spec.
 
 ## Docs
 
@@ -78,7 +58,6 @@ The agent gets no GitHub credentials; the harness reads the issue and opens the 
 - [Architecture decisions](docs/adr/)
 - [Stack](docs/stack.md)
 - [Roadmap](docs/roadmap.md)
-- [Workflow](docs/workflow.md)
 
 ## License
 
