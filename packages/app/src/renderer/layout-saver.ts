@@ -1,5 +1,5 @@
 /** How long the layout must stay unchanged before it's saved, so dragging a sash doesn't save on every step. */
-export const layoutSaveDelayMs = 500;
+const layoutSaveDelayMs = 500;
 
 interface PendingSave {
   readonly root: string;
