@@ -72,7 +72,7 @@ export function WorkshopScreen({
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
-                <DropdownMenuTrigger render={<SidebarMenuButton />}>
+                <DropdownMenuTrigger render={<SidebarMenuButton title={workshop.name} />}>
                   <span className="truncate font-medium">{workshop.name}</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>

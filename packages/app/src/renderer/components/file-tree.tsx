@@ -329,6 +329,7 @@ function FolderContents({
               <SidebarMenuButton
                 data-entry-path={childPath(path, entry.name)}
                 data-entry-kind="file"
+                title={entry.name}
                 onClick={() => onOpenFile(childPath(path, entry.name))}
               >
                 {/* Lines the file up with its sibling folders' icons, which follow a chevron. */}
@@ -373,6 +374,7 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
             aria-description={listingError}
             data-entry-path={path}
             data-entry-kind="folder"
+            title={name}
           >
             {/* Lines the folder up with the others, whose icons follow a chevron. */}
             <span aria-hidden className="size-4 shrink-0" />
@@ -392,6 +394,7 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
           aria-expanded={expanded}
           data-entry-path={path}
           data-entry-kind="folder"
+          title={name}
           onClick={() => {
             setExpandedFolders((current) => {
               const next = new Set(current);

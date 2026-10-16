@@ -163,6 +163,8 @@ async function start(): Promise<void> {
   const window = new BrowserWindow({
     width: 1000,
     height: 650,
+    // The dark theme's --background (index.css), so the window isn't white before the renderer's CSS loads.
+    backgroundColor: "#1a1b26",
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
 
