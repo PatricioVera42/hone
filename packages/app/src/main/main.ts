@@ -63,38 +63,36 @@ function waitForReadyPort(host: ChildProcessWithoutNullStreams): Promise<number>
   });
 }
 
-/** Converts a path from the Windows folder dialog (`\\wsl.localhost\...`, `\\wsl$\...` or a drive path) to the Linux path the host uses, so a drive path becomes `/mnt/<drive>/...`. */
-function toLinuxPath(dialogPath: string): Promise<string> {
-  if (process.platform !== "win32") return Promise.resolve(dialogPath);
+// Long enough for a cold WSL start, short enough that a hung `wsl.exe` doesn't keep the folder dialog from opening.
+const wslCommandTimeoutMs = 5000;
+
+/** Runs `wsl.exe -e <args>` and resolves with its trimmed output. Rejects when it fails or outlasts the timeout. */
+function wslOutput(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("wsl.exe", ["-e", "wslpath", "-u", dialogPath], (error, stdout) => {
+    execFile("wsl.exe", ["-e", ...args], { timeout: wslCommandTimeoutMs }, (error, stdout) => {
       if (error === null) resolve(stdout.trim());
       else reject(error);
     });
   });
+}
+
+/** Converts a path from the Windows folder dialog (`\\wsl.localhost\...`, `\\wsl$\...` or a drive path) to the Linux path the host uses, so a drive path becomes `/mnt/<drive>/...`. */
+function toLinuxPath(dialogPath: string): Promise<string> {
+  if (process.platform !== "win32") return Promise.resolve(dialogPath);
+  return wslOutput(["wslpath", "-u", dialogPath]);
 }
 
 /** Converts a Linux path to the form the Windows folder dialog takes (`wslpath -w`), the reverse of `toLinuxPath`. */
 function toDialogPath(linuxPath: string): Promise<string> {
   if (process.platform !== "win32") return Promise.resolve(linuxPath);
-  return new Promise((resolve, reject) => {
-    execFile("wsl.exe", ["-e", "wslpath", "-w", linuxPath], (error, stdout) => {
-      if (error === null) resolve(stdout.trim());
-      else reject(error);
-    });
-  });
+  return wslOutput(["wslpath", "-w", linuxPath]);
 }
 
 /** The home of the default WSL user. */
 function wslHome(): Promise<string> {
   if (process.platform !== "win32") return Promise.resolve(homedir());
-  return new Promise((resolve, reject) => {
-    // `-e` skips the shell, so one is started to expand $HOME.
-    execFile("wsl.exe", ["-e", "sh", "-c", 'printf %s "$HOME"'], (error, stdout) => {
-      if (error === null) resolve(stdout.trim());
-      else reject(error);
-    });
-  });
+  // `-e` skips the shell, so one is started to expand $HOME.
+  return wslOutput(["sh", "-c", 'printf %s "$HOME"']);
 }
 
 async function isFolder(dialogPath: string): Promise<boolean> {
