@@ -117,9 +117,10 @@ async function closeTabsOfGroup(
   const activeBefore = group.activePanel;
   const closing = tabsToClose(action, group.panels, clicked, isTerminal);
   await Promise.all(closing.map((panel) => closeTab(tabCloseGuards, panel.api)));
+  // Only if it really closed: a tab whose edits couldn't be saved stays open, and keeps the focus.
   if (
     activeBefore !== undefined &&
-    closing.includes(activeBefore) &&
+    !group.panels.includes(activeBefore) &&
     group.panels.includes(clicked)
   ) {
     clicked.api.setActive();
