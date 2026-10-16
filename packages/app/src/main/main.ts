@@ -230,6 +230,15 @@ async function start(): Promise<void> {
     if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
     return appState.setLastWorkshop(root);
   });
+  ipcMain.handle("state:get-recent-workshops", () => appState.getRecentWorkshops());
+  ipcMain.handle("state:add-recent-workshop", (_event, root: unknown) => {
+    if (typeof root !== "string") throw new Error("addRecentWorkshop needs a string root");
+    return appState.addRecentWorkshop(root);
+  });
+  ipcMain.handle("state:remove-recent-workshop", (_event, root: unknown) => {
+    if (typeof root !== "string") throw new Error("removeRecentWorkshop needs a string root");
+    return appState.removeRecentWorkshop(root);
+  });
   ipcMain.handle("state:get-sidebar-width", () => appState.getSidebarWidth());
   ipcMain.handle("state:set-sidebar-width", (_event, width: unknown) => {
     // The state file reads a width that isn't a positive number as unset, so one would erase the saved width.

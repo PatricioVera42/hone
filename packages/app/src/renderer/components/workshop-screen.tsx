@@ -5,6 +5,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
 import {
@@ -23,6 +25,7 @@ import type { LayoutSaver } from "@/layout-saver.ts";
 import type { OpenFiles } from "@/open-file.ts";
 import { closeEditorTabs, EditorArea, renameEditorTabs, type Editors } from "./editor-area.tsx";
 import { FileTree } from "./file-tree.tsx";
+import type { RecentWorkshop } from "./workshop-switcher.tsx";
 
 interface WorkshopScreenProps {
   readonly client: HostClient;
@@ -32,6 +35,9 @@ interface WorkshopScreenProps {
   /** The sidebar's saved width in pixels, if any. */
   readonly sidebarWidth: number | undefined;
   readonly onSidebarWidthChange: (width: number) => void;
+  /** The recent workshops other than the open one. */
+  readonly recentWorkshops: readonly RecentWorkshop[];
+  readonly onOpenRecentWorkshop: (recent: RecentWorkshop) => void;
   readonly onOpenWorkshop: () => void;
   readonly onCreateWorkshop: () => void;
 }
@@ -48,6 +54,8 @@ export function WorkshopScreen({
   layouts,
   sidebarWidth,
   onSidebarWidthChange,
+  recentWorkshops,
+  onOpenRecentWorkshop,
   onOpenWorkshop,
   onCreateWorkshop,
 }: WorkshopScreenProps) {
@@ -80,6 +88,23 @@ export function WorkshopScreen({
                     <DropdownMenuItem onClick={onOpenWorkshop}>Open workshop…</DropdownMenuItem>
                     <DropdownMenuItem onClick={onCreateWorkshop}>Create workshop…</DropdownMenuItem>
                   </DropdownMenuGroup>
+                  {recentWorkshops.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Recent workshops</DropdownMenuLabel>
+                        {recentWorkshops.map((recent) => (
+                          <DropdownMenuItem
+                            key={recent.root}
+                            title={recent.root}
+                            onClick={() => onOpenRecentWorkshop(recent)}
+                          >
+                            <span className="truncate">{recent.name}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>

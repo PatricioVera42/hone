@@ -8,6 +8,12 @@ interface Window {
     /** The root of the workshop opened last, kept in Electron's `userData`. */
     getLastWorkshop(): Promise<string | undefined>;
     setLastWorkshop(root: string): Promise<void>;
+    /** The roots of the last 5 workshops opened, most recent first, kept in Electron's `userData`. */
+    getRecentWorkshops(): Promise<string[]>;
+    /** Moves `root` to the front of the recent workshops. Resolves with the new list. */
+    addRecentWorkshop(root: string): Promise<string[]>;
+    /** Drops `root` from the recent workshops. Resolves with the new list. */
+    removeRecentWorkshop(root: string): Promise<string[]>;
     /** The sidebar's width in pixels, kept in Electron's `userData`. `undefined` if the user never resized it. */
     getSidebarWidth(): Promise<number | undefined>;
     setSidebarWidth(width: number): Promise<void>;
