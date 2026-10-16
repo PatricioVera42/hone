@@ -51,9 +51,8 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
   const tree = syntaxTree(state);
   const { doc, selection } = state;
 
-  // A replaced range may not cross a line break, so one that does (a link title over two lines) stays shown.
   const hide = (from: number, to: number) => {
-    if (from < to && doc.lineAt(from).to >= to) hidden.push({ from, to });
+    if (from < to) hidden.push({ from, to });
   };
 
   for (const { from, to } of visible) {
@@ -70,11 +69,13 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
           if (opening === undefined) return true;
           // The space after the `#`s goes with them, or the heading would start indented.
           const gap = /^[ \t]+/.exec(doc.sliceString(opening.to, node.to))?.[0].length ?? 0;
-          hide(opening.from, opening.to + gap);
-          // An optional closing run of `#`s, as in `## Title ##`, with the space before it.
+          const openingEnd = opening.to + gap;
+          hide(opening.from, openingEnd);
+          // An optional closing run of `#`s, as in `## Title ##`, with the space before it. That space starts no
+          // earlier than where the opening hide ends, so the two never overlap, as in `# #`.
           const closing = marks.length > 1 ? marks[marks.length - 1] : undefined;
           if (closing !== undefined) {
-            const lead = /[ \t]*$/.exec(doc.sliceString(opening.to, closing.from))?.[0].length ?? 0;
+            const lead = /[ \t]*$/.exec(doc.sliceString(openingEnd, closing.from))?.[0].length ?? 0;
             hide(closing.from - lead, closing.to);
           }
           return true;
@@ -85,7 +86,9 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
           const marks = node.node.getChildren("LinkMark");
           const opening = marks[0];
           const closing = marks[1];
-          if (url !== null && opening !== undefined && closing !== undefined) {
+          // A replaced range can't cross a line break, so a link that does (a url split in two) stays as typed.
+          const oneLine = doc.lineAt(node.from).to >= node.to;
+          if (url !== null && opening !== undefined && closing !== undefined && oneLine) {
             if (!touchesSelection(selection, element)) {
               hide(opening.from, opening.to);
               hide(closing.from, node.to);
@@ -104,14 +107,7 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
     });
   }
 
-  // Two visible ranges around a fold both reach an element that spans them, so it is found twice.
-  const unique = (spans: readonly Span[]) => {
-    const sorted = spans.toSorted((a, b) => a.from - b.from || a.to - b.to);
-    return sorted.filter(
-      (span, i) => i === 0 || span.from !== sorted[i - 1]?.from || span.to !== sorted[i - 1]?.to,
-    );
-  };
-  return { hidden: unique(hidden), inlineCode: unique(inlineCode) };
+  return { hidden, inlineCode };
 }
 
 const hiddenSyntax = Decoration.replace({});

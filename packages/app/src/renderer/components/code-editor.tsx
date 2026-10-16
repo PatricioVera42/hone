@@ -69,13 +69,6 @@ const headingTags = [
 // Every color is a --syntax-* variable (index.css), so a theme changes the highlighting by setting them.
 const highlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: "var(--syntax-heading)", fontWeight: "600" },
-  // Each level has its own size, which a theme sets with --heading-N-size.
-  ...headingTags.map((tag, i) => ({
-    tag,
-    color: "var(--syntax-heading)",
-    fontWeight: "600",
-    fontSize: `var(--heading-${i + 1}-size)`,
-  })),
   { tag: tags.strong, fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
@@ -98,6 +91,12 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: "var(--destructive)" },
 ]);
 
+// Only a note's headings change size, so a `.markdown` file opened as code looks as before. Each level reads its
+// own --heading-N-size, which a theme sets.
+const headingSizeStyle = HighlightStyle.define(
+  headingTags.map((tag, i) => ({ tag, fontSize: `var(--heading-${i + 1}-size)` })),
+);
+
 // Notes read like prose: wrapped, in the UI font, without line numbers.
 const noteExtensions: Extension = [
   EditorView.lineWrapping,
@@ -114,6 +113,7 @@ const noteExtensions: Extension = [
   // The frontmatter is parsed as YAML, or `markdown` would read its closing `---` as a heading underline.
   yamlFrontmatter({ content: markdown({ base: markdownLanguage, codeLanguages: languages }) }),
   noteBracketClosing,
+  syntaxHighlighting(headingSizeStyle),
   livePreview,
   livePreviewTheme,
 ];

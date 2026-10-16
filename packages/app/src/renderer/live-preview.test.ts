@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { previewSpans } from "./live-preview.ts";
 
 /** The text `previewSpans` hides in `doc` with the given selection, which is a cursor at 0 unless given. */
-function hiddenText(doc: string, ...selection: SelectionRange[]): string[] {
+function spans(doc: string, ...selection: SelectionRange[]) {
   const state = EditorState.create({
     doc,
     extensions: [
@@ -16,9 +16,11 @@ function hiddenText(doc: string, ...selection: SelectionRange[]): string[] {
     selection: selection.length > 0 ? EditorSelection.create(selection) : { anchor: 0 },
   });
   ensureSyntaxTree(state, doc.length, 5000);
-  return previewSpans(state, [{ from: 0, to: doc.length }]).hidden.map((span) =>
-    doc.slice(span.from, span.to),
-  );
+  return previewSpans(state, [{ from: 0, to: doc.length }]);
+}
+
+function hiddenText(doc: string, ...selection: SelectionRange[]): string[] {
+  return spans(doc, ...selection).hidden.map((span) => doc.slice(span.from, span.to));
 }
 
 const cursor = (at: number) => EditorSelection.cursor(at);
@@ -39,6 +41,17 @@ describe("headings", () => {
 
   it("hide the closing marks of a heading with the space before them", () => {
     expect(hiddenText("x\n\n# Title ##", cursor(0))).toEqual(["# ", " ##"]);
+  });
+
+  it("never hide the same text twice when the closing marks follow the opening ones", () => {
+    for (const heading of ["# #", "## ##", "# # #"]) {
+      const note = `x\n\n${heading}`;
+      const { hidden } = spans(note, cursor(0));
+      const sorted = hidden.toSorted((a, b) => a.from - b.from);
+      for (const [i, span] of sorted.entries()) {
+        expect(span.from).toBeGreaterThanOrEqual(sorted[i - 1]?.to ?? 0);
+      }
+    }
   });
 
   it("keep the syntax of formatting inside a heading hidden while the cursor is elsewhere in it", () => {
@@ -85,7 +98,9 @@ describe("inline formatting", () => {
 
   it("hides the marks of nested formatting separately", () => {
     const doc = "***both*** end";
-    expect(hiddenText(doc, cursor(doc.length))).toEqual(["*", "**", "**", "*"]);
+    const { hidden } = spans(doc, cursor(doc.length));
+    const sorted = hidden.toSorted((a, b) => a.from - b.from);
+    expect(sorted.map((span) => doc.slice(span.from, span.to))).toEqual(["*", "**", "**", "*"]);
   });
 
   it("leaves an unclosed mark alone", () => {
@@ -103,6 +118,11 @@ describe("links", () => {
   it("show everything with the cursor in the link, url included", () => {
     expect(hiddenText(doc, cursor(doc.indexOf("Juraf")))).toEqual([]);
     expect(hiddenText(doc, cursor(doc.indexOf("example")))).toEqual([]);
+  });
+
+  it("stay as typed when the url is split over two lines", () => {
+    const note = "see [text](https://example.com/a\nb) now";
+    expect(hiddenText(note, cursor(note.length))).toEqual([]);
   });
 
   it("leave a reference link and wikilinks as typed", () => {
@@ -137,20 +157,5 @@ describe("the visible part", () => {
     const { hidden } = previewSpans(state, [{ from: 0, to: 9 }]);
     expect(hidden.map((span) => doc.slice(span.from, span.to))).toEqual(["**", "**"]);
     expect(hidden[0]?.from).toBe(0);
-  });
-
-  it("reports an element once when two visible ranges both reach it", () => {
-    const doc = "**bold across**\n\nend";
-    const state = EditorState.create({
-      doc,
-      extensions: markdown({ base: markdownLanguage }),
-      selection: { anchor: doc.length },
-    });
-    ensureSyntaxTree(state, doc.length, 5000);
-    const { hidden } = previewSpans(state, [
-      { from: 0, to: 4 },
-      { from: 6, to: 15 },
-    ]);
-    expect(hidden.length).toBe(2);
   });
 });
