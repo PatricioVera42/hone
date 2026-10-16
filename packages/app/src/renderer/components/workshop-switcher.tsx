@@ -40,6 +40,17 @@ function warnIfOnWindowsDisk(workshop: WorkshopInfo): void {
   });
 }
 
+/** Tells the user the workshop that contains `folder` was opened, since they picked a folder inside it. */
+function noteWorkshopContaining(folder: string, workshop: WorkshopInfo): void {
+  const picked = folder.length > 1 ? folder.replace(/\/+$/, "") : folder;
+  if (picked === workshop.root) return;
+  toast.add({
+    type: "info",
+    title: `Opened the workshop ${workshop.name}`,
+    description: `${picked.slice(picked.lastIndexOf("/") + 1)} is inside it.`,
+  });
+}
+
 /** Reopens the last workshop. `undefined` if there is none, or it was deleted or is no longer a workshop. */
 async function reopenLastWorkshop(client: HostClient): Promise<WorkshopInfo | undefined> {
   const root = await window.hone.getLastWorkshop();
@@ -112,7 +123,9 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     if (openFiles.hasPendingEdits()) return;
     await layouts.pause();
     try {
-      show(await client.call(workshopOpenMethod, { path: folder }));
+      const opened = await client.call(workshopOpenMethod, { path: folder });
+      show(opened);
+      noteWorkshopContaining(folder, opened);
     } catch (error) {
       layouts.resume();
       if (!isNotAWorkshop(error)) throw error;
