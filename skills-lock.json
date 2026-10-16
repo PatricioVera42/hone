@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "create-verification-skill": {
+      "source": "backnotprop/pstack",
+      "sourceType": "github",
+      "skillPath": "skills/create-verification-skill/SKILL.md",
+      "computedHash": "1a096d6f6707ba90440de5fe94bdad1e2a26e5160a6c1bc84f632fd8e4ae4294"
+    },
+    "maintain-verification-skill": {
+      "source": "backnotprop/pstack",
+      "sourceType": "github",
+      "skillPath": "skills/maintain-verification-skill/SKILL.md",
+      "computedHash": "273ceda1dc53a0f13b4c695b6bbd01217325cd348b6f7995e07d0b8196162b75"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",

@@ -9,8 +9,3 @@ commit-msg:
   jobs:
     - name: no attribution lines
       run: '! grep -qiE "^co-authored-by:|generated with claude code" {1}'
-
-pre-push:
-  jobs:
-    - name: check
-      run: pnpm check

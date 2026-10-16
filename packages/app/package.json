@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.ts",
     "build": "vite build --config vite.config.ts && vite build --config vite.electron.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "env -u WAYLAND_DISPLAY xvfb-run -a playwright test"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",
@@ -38,11 +38,9 @@
     "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@types/ws": "8.18.1",
     "@vitejs/plugin-react": "6.1.1",
     "electron": "44.4.5",
     "tailwindcss": "4.3.3",
-    "vite": "8.3.1",
-    "ws": "8.21.3"
+    "vite": "8.3.1"
   }
 }

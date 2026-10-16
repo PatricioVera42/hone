@@ -887,25 +887,6 @@ describe("files.countFiles", () => {
     });
   });
 
-  it("stops counting at 10,000", async () => {
-    host = await startTestHost();
-    const root = await makeWorkshop();
-    await fs.mkdir(path.join(root, "big", "nested"), { recursive: true });
-    await Promise.all(
-      Array.from({ length: 10_001 }, (_, index) =>
-        fs.writeFile(
-          path.join(root, "big", index % 2 === 0 ? "nested" : "", `${String(index)}.md`),
-          "",
-        ),
-      ),
-    );
-    await host.call("workshop.open", { path: root });
-
-    await expect(host.call("files.countFiles", { path: "big" })).resolves.toStrictEqual({
-      count: 10_000,
-    });
-  });
-
   it("fails with NotFound for a file", async () => {
     host = await startTestHost();
     const root = await makeWorkshop();

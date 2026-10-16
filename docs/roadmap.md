@@ -14,11 +14,11 @@ Findings go to `research/`; anything that changes a decision becomes an ADR.
 1. Monorepo foundation, by hand in an interactive session, not through Sandcastle: `packages/app`, `packages/host` and `packages/protocol`, TypeScript strict, Oxlint, Oxfmt, Knip, Vitest, `pnpm check`, lefthook and `CODING_STANDARDS.md`, following [research/typescript-standards.md](../research/typescript-standards.md) and [research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md). It comes first because Sandcastle's gate runs `pnpm check`. No planning skills needed: the decisions are in ADRs 0008 and 0009 and the drafts in those research files. Done: `pnpm dev` opens an empty window and starts the host; `pnpm check` runs in about 3 s.
 2. Plan stage 1 with `grilling`, `to-spec` and `to-tickets`, then `triage` the issues. Done: spec #1, tickets #2 to #12, all `ready-for-agent`.
 3. The steps in "Before the first agent loop", then the first loop on a small ticket. The loop starts with #2. Done: stage 1 was implemented through the loop.
-4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), spec #87, and its prompts are written by hand instead of through Sandcastle ([workflow.md](workflow.md#agent-prompts)).
+4. Plan stage 2 with `grilling` and `domain-modeling`. Done on 2026-10-02: stage 2 is split into 2a and 2b (below), spec #87, and its prompts are written by hand instead of through Sandcastle.
 
 ## Before the first agent loop
 
-The repo goes public when the first Sandcastle loop runs, since that's when implementation starts (see [workflow.md](workflow.md)). On the same day:
+The repo goes public when the first Sandcastle loop runs, since that's when implementation starts. On the same day:
 
 1. Make `PatricioVera42/hone` public. On GitHub Free, rulesets and unlimited Actions minutes need a public repo.
 2. Add the CI workflow that runs `pnpm check` ([research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md)).
@@ -39,7 +39,7 @@ A note-taking app with an integrated terminal and the agent workflow (generator,
   1. Skeleton: open a workshop, file tree, Markdown and code editor, terminal, dockview layout. Done on 2026-10-02 (spec #1).
      Set up shadcn/ui with `@shadcn/lint` and install shadcn's agent skill (`pnpm dlx skills add shadcn/ui`) when `packages/app` is created (ADR 0008).
      A Playwright test that opens the app and checks that the renderer has no `process` or `require` and that the page has a Content Security Policy. It backs up the `hone/electron-security` lint rule, which only catches literal values (`sandbox: false`, not `sandbox: isDev`).
-  2. Agents: plain text, written and tested by hand in parallel with the other stages ([workflow.md](workflow.md#agent-prompts)). In two parts:
+  2. Agents: plain text, written and tested by hand in parallel with the other stages. In two parts:
      - 2a. The basic loop for one study project, without nesting: `/onboard`, `/create`, `/refine`, and in `library-default/` the skills `study`, `close` and `quick-close`. Only study projects.
         - `study` is adapted from Matt Pocock's `teach` (MIT). It keeps how `teach` teaches (the zone of proximal development, retrieval practice) but writes lessons and references as Markdown notes, opens each lesson's questions and its quizzes and visuals as HTML pages in the browser, can keep an optional roadmap of the course's topics, and leaves the record of what was learned to `PROGRESS.md` through `/close`. It looks for answers in the project's material first. If nothing is there, it asks the user instead of searching the web, and searches only with the user's consent. It never answers from the model's memory.
         - When a new project has no material, `/create` offers to search the web for trustworthy sources, and the ones the user picks become material.
@@ -70,7 +70,3 @@ A note-taking app with an integrated terminal and the agent workflow (generator,
 - Ship the host with its own Node, so WSL doesn't need Node installed.
 - Terminals that survive closing the window (the host keeps running).
 - Optional git versioning of the workshop, ignoring projects that have their own `.git`.
-
-## How it's built
-
-See [workflow.md](workflow.md): planning with `grilling`, `to-spec` and `to-tickets`; `triage` by hand; one to three Sandcastle loops, one branch and pull request per ticket; `pnpm check`, CI and CodeRabbit as the gates; `qa-checklist` and a human merge.

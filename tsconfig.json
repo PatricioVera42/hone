@@ -18,9 +18,6 @@
     },
     {
       "path": "lint-rules"
-    },
-    {
-      "path": ".sandcastle"
     }
   ]
 }

@@ -6,18 +6,16 @@
     "dev": "pnpm --filter @hone/app dev",
     "build": "pnpm --filter @hone/app build",
     "test:e2e": "pnpm --filter @hone/app test:e2e",
+    "verify": "node packages/app/e2e/verify.ts",
     "typecheck": "tsc -b",
     "format": "oxfmt",
     "lint": "oxfmt --check && oxlint --type-aware --deny-warnings --report-unused-disable-directives",
     "knip": "knip",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm lint && pnpm knip && pnpm test",
-    "sync-workshop": "node packages/host/src/sync-workshop.ts",
-    "sandcastle": "node .sandcastle/main.ts",
-    "sandcastle:image": "sandcastle docker build-image"
+    "sync-workshop": "node packages/host/src/sync-workshop.ts"
   },
   "devDependencies": {
-    "@ai-hero/sandcastle": "0.12.0",
     "@oxlint/plugins": "1.85.0",
     "@shadcn/lint": "0.2.0",
     "@types/node": "24.19.0",
