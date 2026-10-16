@@ -8,8 +8,11 @@ import {
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { AppStateFile } from "./app-state.ts";
+import { chooseStartFolder } from "./start-folder.ts";
 
 function argValue(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -71,8 +74,51 @@ function toLinuxPath(dialogPath: string): Promise<string> {
   });
 }
 
-async function pickFolder(window: BrowserWindow): Promise<string | undefined> {
-  const result = await dialog.showOpenDialog(window, { properties: ["openDirectory"] });
+/** Converts a Linux path to the form the Windows folder dialog takes (`wslpath -w`), the reverse of `toLinuxPath`. */
+function toDialogPath(linuxPath: string): Promise<string> {
+  if (process.platform !== "win32") return Promise.resolve(linuxPath);
+  return new Promise((resolve, reject) => {
+    execFile("wsl.exe", ["-e", "wslpath", "-w", linuxPath], (error, stdout) => {
+      if (error === null) resolve(stdout.trim());
+      else reject(error);
+    });
+  });
+}
+
+/** The home of the default WSL user. */
+function wslHome(): Promise<string> {
+  if (process.platform !== "win32") return Promise.resolve(homedir());
+  return new Promise((resolve, reject) => {
+    // `-e` skips the shell, so one is started to expand $HOME.
+    execFile("wsl.exe", ["-e", "sh", "-c", 'printf %s "$HOME"'], (error, stdout) => {
+      if (error === null) resolve(stdout.trim());
+      else reject(error);
+    });
+  });
+}
+
+async function isFolder(dialogPath: string): Promise<boolean> {
+  try {
+    return (await stat(dialogPath)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function pickFolder(
+  window: BrowserWindow,
+  appState: AppStateFile,
+): Promise<string | undefined> {
+  const defaultPath = await chooseStartFolder({
+    lastWorkshop: await appState.getLastWorkshop().catch(() => undefined),
+    home: wslHome,
+    toDialogPath,
+    isFolder,
+  });
+  const result = await dialog.showOpenDialog(window, {
+    properties: ["openDirectory"],
+    ...(defaultPath === undefined ? {} : { defaultPath }),
+  });
   const [folder] = result.filePaths;
   if (result.canceled || folder === undefined) return undefined;
   return toLinuxPath(folder);
@@ -177,9 +223,8 @@ async function start(): Promise<void> {
     window.webContents.reload();
   });
 
-  ipcMain.handle("dialog:pick-folder", () => pickFolder(window));
-
   const appState = new AppStateFile(path.join(app.getPath("userData"), "state.json"));
+  ipcMain.handle("dialog:pick-folder", () => pickFolder(window, appState));
   ipcMain.handle("state:get-last-workshop", () => appState.getLastWorkshop());
   ipcMain.handle("state:set-last-workshop", (_event, root: unknown) => {
     if (typeof root !== "string") throw new Error("setLastWorkshop needs a string root");
