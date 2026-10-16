@@ -82,6 +82,12 @@ function undefinedOnFailure<T>(promise: Promise<T>): Promise<T | undefined> {
   });
 }
 
+/** The recent workshops, with `reopened` among them: a `state.json` from before the list existed has a last workshop that isn't in it. */
+function loadRecentWorkshops(reopened: WorkshopInfo | undefined): Promise<string[]> {
+  if (reopened === undefined) return window.hone.getRecentWorkshops();
+  return window.hone.addRecentWorkshop(reopened.root);
+}
+
 /**
  * Holds the open workshop, if any, and opens or creates another in its place, saving pending edits and pausing
  * layout saves before the host switches: once it has, a late save would land on the same path in the other
@@ -102,13 +108,14 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
 
   useEffect(() => {
     let cancelled = false;
+    // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
+    const reopening = undefinedOnFailure(reopenLastWorkshop(client));
     void Promise.all([
-      // Falls back to the welcome screen, so an unexpected failure never leaves the window blank.
-      undefinedOnFailure(reopenLastWorkshop(client)),
+      reopening,
       // Falls back to the default width, and each failure leaves the other result alone.
       undefinedOnFailure(window.hone.getSidebarWidth()),
       // Falls back to no list.
-      undefinedOnFailure(window.hone.getRecentWorkshops()),
+      reopening.then((reopened) => undefinedOnFailure(loadRecentWorkshops(reopened))),
     ]).then(([reopened, savedWidth, savedRecents]) => {
       if (cancelled) return;
       setSidebarWidth(savedWidth);
