@@ -1,6 +1,6 @@
 # Editor
 
-Clicking a file in the tree opens it in an editor tab: notes (`.md`) get note settings, other text files code settings with line numbers, and binary files a message instead. Edits save to disk shortly after typing, undo and redo work and are saved too, and a file changed or deleted on disk updates or closes its tab. Breadcrumbs above the editor show the workshop and folders, each a menu of its entries.
+Clicking a file in the tree opens it in an editor tab: notes (`.md`) get note settings, other text files code settings with line numbers, and binary files a message instead. Edits save to disk shortly after typing, undo and redo work and are saved too, and a file changed or deleted on disk updates or closes its tab. A note reads formatted, with its Markdown syntax hidden except where the cursor is. Breadcrumbs above the editor show the workshop and folders, each a menu of its entries.
 
 ## Sub-features
 
@@ -11,6 +11,7 @@ Clicking a file in the tree opens it in an editor tab: notes (`.md`) get note se
 - `ed-undo` undoes with Ctrl+Z and redoes with Ctrl+Y or Ctrl+Shift+Z, saving each.
 - `ed-disk-change` shows a file rewritten on disk, and says pending edits were discarded when there were some.
 - `ed-disk-delete` closes the tab of a file deleted on disk.
+- `ed-live-preview` draws a note's headings (own size per level), bold, italic, strikethrough, inline code and `[text](url)` links without their syntax; the syntax of an element shows while the cursor or a selection touches it; frontmatter stays YAML; code files are untouched.
 - `ed-binary` shows `This file can't be opened in Hone` for a binary file.
 - `ed-breadcrumbs` shows workshop, folders and file name; a folder segment's menu lists its entries and opens files.
 - `ed-close-window` saves pending edits on window close, and asks before discarding unsaved ones.
@@ -37,10 +38,12 @@ Preconditions:
 - **Breadcrumbs.** Open `notes/math/groups.md`. `page.getByRole("navigation", { name: "breadcrumb" }).getByRole("listitem")` reads `studies`, `notes`, `math`, `groups.md`. Click the `notes` segment: `getByRole("menu")` lists its entries, folders first, and choosing a file opens or focuses its tab.
 - **Close tab.** Click in the editor and press `Control+w`: the tab and the textbox are gone.
 - **Tab menu.** `page.getByRole("tab", { name, exact: true }).click({ button: "right" })` opens a `menu` with `menuitem`s `Close`, `Close Others`, `Close to the Right` and `Close All` (match with `exact: true`, since `Close` is a prefix of the rest). Each acts on the right-clicked tab's group only and skips terminal tabs, except `Close`. Items with nothing to close are disabled. A group is `page.getByRole("tablist").nth(i)`, in layout order; check its tabs with `getByRole("tab")` and `toHaveText([...])`, and the focus with `aria-selected="true"`. After `Close Others` or `Close to the Right` closes the active tab, the right-clicked tab is selected. If the active tab's save fails, it stays open and selected: `chmod(root, 0o555)` makes the save fail (restore `0o755` in a `finally`), and `Something went wrong` shows.
+- **Live preview.** Seed a note with `# H1`, `## H2`, a line with `**bold**`, `*italic*`, `~~struck~~`, a `` `code` `` span and `[text](https://…)`, and one starting with `---\nname: x\n---` frontmatter. Open it, click in the editor and press `Control+End` (cursor outside every element): `getByRole("textbox", { name })` `not.toContainText` `**`, `` ` ``, `# ` or `](https`. Click the text of the bold, the link, the code or a heading: its syntax shows (`toContainText("**bold**")`, the whole `[text](url)`, `## H2`) while the other elements stay hidden. `Control+a` shows everything. The frontmatter note shows `name: x` and `---` with no heading drawn, and `readFile` gives back exactly the seeded text. A `.ts` file containing `**x**` shows it as typed. Heading sizes come from `--heading-1-size` to `--heading-6-size`; judge them in the screenshots (ARIA doesn't carry size).
 - **Proof.** Snap after opening, after typing and after each disk change. `record` the file content after autosave and after undo.
 
 ## Gotchas
 
+- The live preview changes only how text is drawn, so assert on the editor's text (`toContainText`) and snap to see sizes. Click the element's own text to put the cursor in it; the click lands inside the element only if its syntax is hidden at that moment, which is the point.
 - The editor textbox is named by the path relative to the workshop (`notes/math/groups.md`), while the tab is named by the file name.
 - Saving is debounced. Poll the file; reading it right after typing sees the old content.
 - Ctrl+W acts on the focused group. Click inside the editor first, or it may close a terminal tab.

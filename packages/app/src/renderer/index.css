@@ -127,6 +127,12 @@
   --syntax-meta: #565f89;
   --syntax-heading: #7aa2f7;
   --syntax-link: #7dcfff;
+  --heading-1-size: 1.8em;
+  --heading-2-size: 1.6em;
+  --heading-3-size: 1.4em;
+  --heading-4-size: 1.25em;
+  --heading-5-size: 1.125em;
+  --heading-6-size: 1em;
   /* The editors, read by code-editor.tsx. A note's text column is at most this wide, in the note's font. */
   --note-max-width: 80ch;
   --line-number: oklch(0.556 0 0);

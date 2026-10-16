@@ -6,6 +6,7 @@ import {
   toggleTabFocusMode,
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import {
   HighlightStyle,
   LanguageDescription,
@@ -35,6 +36,7 @@ import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
 import { indentKeymap } from "@/indent-keymap.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
+import { livePreview, livePreviewTheme } from "@/live-preview.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
 
@@ -54,6 +56,15 @@ const theme = EditorView.theme({
   },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--foreground)" },
 });
+
+const headingTags = [
+  tags.heading1,
+  tags.heading2,
+  tags.heading3,
+  tags.heading4,
+  tags.heading5,
+  tags.heading6,
+];
 
 // Every color is a --syntax-* variable (index.css), so a theme changes the highlighting by setting them.
 const highlightStyle = HighlightStyle.define([
@@ -80,6 +91,12 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: "var(--destructive)" },
 ]);
 
+// Only a note's headings change size, so a `.markdown` file opened as code looks as before. Each level reads its
+// own --heading-N-size, which a theme sets.
+const headingSizeStyle = HighlightStyle.define(
+  headingTags.map((tag, i) => ({ tag, fontSize: `var(--heading-${i + 1}-size)` })),
+);
+
 // Notes read like prose: wrapped, in the UI font, without line numbers.
 const noteExtensions: Extension = [
   EditorView.lineWrapping,
@@ -93,8 +110,12 @@ const noteExtensions: Extension = [
       margin: "0 auto",
     },
   }),
-  markdown({ base: markdownLanguage, codeLanguages: languages }),
+  // The frontmatter is parsed as YAML, or `markdown` would read its closing `---` as a heading underline.
+  yamlFrontmatter({ content: markdown({ base: markdownLanguage, codeLanguages: languages }) }),
   noteBracketClosing,
+  syntaxHighlighting(headingSizeStyle),
+  livePreview,
+  livePreviewTheme,
 ];
 
 // Tab, Shift+Tab and Ctrl+L indent and select lines only in code; in a note Tab moves focus, as on a web page.
@@ -152,7 +173,7 @@ interface CodeEditorProps {
 }
 
 /**
- * A CodeMirror editor for a file's content. A note gets Markdown with GFM; any other file gets the language
+ * A CodeMirror editor for a file's content. A note gets Markdown with GFM and a live preview; any other file gets the language
  * `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
  */
 export function CodeEditor({ path, content, connect }: CodeEditorProps) {
