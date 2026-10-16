@@ -10,12 +10,14 @@ A workshop is a folder with `.hone/generator/` inside. From the welcome screen o
 - `ws-open` opens a workshop from its root or from any folder inside it.
 - `ws-not-a-workshop` offers `Create workshop` when the picked folder isn't inside one.
 - `ws-switch` opens another workshop from the sidebar menu, replacing the open one.
+- `ws-recent` lists the last 5 workshops opened in the sidebar menu and on the welcome screen, and a click opens one; one that was moved or deleted shows an error and leaves the list.
 - `ws-reopen` reopens the last workshop on launch, and shows the welcome screen when it was deleted.
 
 ## How to get to it (user POV)
 
 - Welcome screen: the `Open workshop` and `Create workshop` buttons.
 - Sidebar header: the button named after the open workshop opens a menu with `Open workshop…` and `Create workshop…`.
+- Sidebar header menu and welcome screen: the `Recent workshops` list.
 - Relaunching the app.
 
 ## Driving it with verify.ts
@@ -30,6 +32,7 @@ Preconditions:
 - **Open from a nested folder.** `makeWorkshop("studies")`, `mkdir` `studies/math/algebra`, `pickFolderInDialog` on that nested folder, then click `Open workshop`. The sidebar button `studies` is visible.
 - **Not a workshop.** Pick a plain folder in the scratch and click `Open workshop`. `getByRole("alertdialog")` contains `<folder> isn't inside a workshop.` and a `Create workshop` button.
 - **Switch.** With `studies` open, click `workshopMenuButton(page, "studies")`, `pickFolderInDialog` on a second workshop `work`, then click `menuitem "Open workshop…"`. The sidebar button reads `work`, and `studies`'s tabs are gone.
+- **Recent.** Open `studies`, then `work` through the menu. `click` `workshopMenuButton(page, "work")`: `menuitem "studies"` is there and `menuitem "work"` isn't. After `relaunch()` it's still there. `rm` `studies` and `relaunch()`: the welcome screen lists `button "studies"` and `button "work"`; clicking `studies` shows the text `Couldn't open studies` and removes it, and clicking `work` opens it. Read `state.json` in the run's user data to `record` `recentWorkshops`.
 - **Reopen.** Open `studies`, then `relaunch()`. On the new page `workshopMenuButton(page, "studies")` is visible with no click. `rm` the workshop and `relaunch()` again: the welcome screen's `Open workshop` is back.
 - **Proof.** Snap the welcome screen, the filled dialog and the opened workshop. `record` the `readdir` of the new root, `.hone/generator` and `library`.
 

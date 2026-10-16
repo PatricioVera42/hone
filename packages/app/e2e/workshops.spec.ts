@@ -149,6 +149,58 @@ test("opening another workshop from the sidebar menu replaces the open one", asy
   }
 });
 
+test("the sidebar menu lists the recent workshops, and a click opens one", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const studies = await makeWorkshop(temporary, "studies");
+  const work = await makeWorkshop(temporary, "work");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, studies);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await workshopMenuButton(page, "studies").click();
+    await pickFolderInDialog(electronApp, work);
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+
+    await workshopMenuButton(page, "work").click();
+    // The open workshop isn't offered.
+    await expect(page.getByRole("menuitem", { name: "work", exact: true })).toBeHidden();
+    await page.getByRole("menuitem", { name: "studies" }).click();
+    await expect(workshopMenuButton(page, "studies")).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("a recent workshop that was deleted shows an error and leaves the list", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "hone-e2e-"));
+  const studies = await makeWorkshop(temporary, "studies");
+  const work = await makeWorkshop(temporary, "work");
+
+  const electronApp = await launch(path.join(temporary, "user-data"));
+  try {
+    const page = await electronApp.firstWindow();
+    await pickFolderInDialog(electronApp, studies);
+    await page.getByRole("button", { name: "Open workshop" }).click();
+    await workshopMenuButton(page, "studies").click();
+    await pickFolderInDialog(electronApp, work);
+    await page.getByRole("menuitem", { name: "Open workshop…" }).click();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
+    await rm(studies, { recursive: true });
+
+    await workshopMenuButton(page, "work").click();
+    await page.getByRole("menuitem", { name: "studies" }).click();
+    await expect(page.getByText("Couldn't open studies")).toBeVisible();
+    await expect(workshopMenuButton(page, "work")).toBeVisible();
+    await workshopMenuButton(page, "work").click();
+    await expect(page.getByRole("menuitem", { name: "Open workshop…" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "studies" })).toBeHidden();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("an unexpected error while opening a workshop shows up as a toast", async () => {
   const electronApp = await launch(await temporaryUserData());
   try {

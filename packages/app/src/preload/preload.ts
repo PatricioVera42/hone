@@ -1,5 +1,5 @@
 // Preload: the renderer's only way to reach main: the host connection, the native folder dialog, app state (the
-// last workshop, the sidebar's width and each workshop's layout) and saving pending edits before the window closes.
+// last and recent workshops, the sidebar's width and each workshop's layout) and saving pending edits before the window closes.
 import { contextBridge, ipcRenderer } from "electron";
 
 function asString(value: unknown): string {
@@ -21,6 +21,15 @@ function asOptionalString(value: unknown): string | undefined {
   return value;
 }
 
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function asStrings(value: unknown): string[] {
+  if (!isStringList(value)) throw new Error("IPC returned a value that is not a list of strings");
+  return value;
+}
+
 contextBridge.exposeInMainWorld("hone", {
   getHostConnection: (): string => asString(ipcRenderer.sendSync("host:connection")),
   restartHost: async (): Promise<void> => {
@@ -33,6 +42,12 @@ contextBridge.exposeInMainWorld("hone", {
   setLastWorkshop: async (root: string): Promise<void> => {
     await ipcRenderer.invoke("state:set-last-workshop", root);
   },
+  getRecentWorkshops: async (): Promise<string[]> =>
+    asStrings(await ipcRenderer.invoke("state:get-recent-workshops")),
+  addRecentWorkshop: async (root: string): Promise<string[]> =>
+    asStrings(await ipcRenderer.invoke("state:add-recent-workshop", root)),
+  removeRecentWorkshop: async (root: string): Promise<string[]> =>
+    asStrings(await ipcRenderer.invoke("state:remove-recent-workshop", root)),
   getSidebarWidth: async (): Promise<number | undefined> =>
     asOptionalNumber(await ipcRenderer.invoke("state:get-sidebar-width")),
   setSidebarWidth: async (width: number): Promise<void> => {

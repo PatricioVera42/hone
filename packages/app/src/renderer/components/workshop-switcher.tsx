@@ -21,6 +21,16 @@ interface CreateDialogState {
   readonly initialParent: string | undefined;
 }
 
+/** A workshop in the recent list, named after its folder. */
+export interface RecentWorkshop {
+  readonly root: string;
+  readonly name: string;
+}
+
+function toRecentWorkshop(root: string): RecentWorkshop {
+  return { root, name: root.slice(root.lastIndexOf("/") + 1) };
+}
+
 const closedCreateDialog: CreateDialogState = { open: false, initialParent: undefined };
 
 function isNotAWorkshop(error: unknown): boolean {
@@ -85,6 +95,7 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
   const [sidebarWidth, setSidebarWidth] = useState<number>();
   const [notAWorkshopFolder, setNotAWorkshopFolder] = useState<string>();
   const [createDialog, setCreateDialog] = useState<CreateDialogState>(closedCreateDialog);
+  const [recentRoots, setRecentRoots] = useState<string[]>([]);
 
   // After the children's effects, so the old workshop's editor area has stopped reporting layout changes.
   useEffect(() => layouts.resume(), [layouts, workshop]);
@@ -96,9 +107,12 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
       undefinedOnFailure(reopenLastWorkshop(client)),
       // Falls back to the default width, and each failure leaves the other result alone.
       undefinedOnFailure(window.hone.getSidebarWidth()),
-    ]).then(([reopened, savedWidth]) => {
+      // Falls back to no list.
+      undefinedOnFailure(window.hone.getRecentWorkshops()),
+    ]).then(([reopened, savedWidth, savedRecents]) => {
       if (cancelled) return;
       setSidebarWidth(savedWidth);
+      setRecentRoots(savedRecents ?? []);
       if (reopened !== undefined) warnIfOnWindowsDisk(reopened);
       setWorkshop(reopened);
       setRestoring(false);
@@ -112,11 +126,11 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     setWorkshop(opened);
     warnIfOnWindowsDisk(opened);
     void window.hone.setLastWorkshop(opened.root);
+    window.hone.addRecentWorkshop(opened.root).then(setRecentRoots).catch(reportError);
   }
 
-  async function openWorkshop(): Promise<void> {
-    const folder = await window.hone.pickFolder();
-    if (folder === undefined) return;
+  /** Opens the workshop that contains `folder`, in place of the open one. `onNotAWorkshop` runs if there is none. */
+  async function openFolder(folder: string, onNotAWorkshop: () => void): Promise<void> {
     await openFiles.flush();
     // A save failed and its error toast is showing; switching would drop those edits.
     if (openFiles.hasPendingEdits()) return;
@@ -128,8 +142,25 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     } catch (error) {
       layouts.resume();
       if (!isNotAWorkshop(error)) throw error;
-      setNotAWorkshopFolder(folder);
+      onNotAWorkshop();
     }
+  }
+
+  async function openWorkshop(): Promise<void> {
+    const folder = await window.hone.pickFolder();
+    if (folder === undefined) return;
+    await openFolder(folder, () => setNotAWorkshopFolder(folder));
+  }
+
+  async function openRecentWorkshop(recent: RecentWorkshop): Promise<void> {
+    await openFolder(recent.root, () => {
+      toast.add({
+        type: "error",
+        title: `Couldn't open ${recent.name}`,
+        description: `${recent.root} was moved or deleted, or is no longer a workshop. It's off the recent list.`,
+      });
+      window.hone.removeRecentWorkshop(recent.root).then(setRecentRoots).catch(reportError);
+    });
   }
 
   function showCreateDialog(initialParent: string | undefined): void {
@@ -144,6 +175,10 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     showCreateDialog(undefined);
   }
 
+  const recentWorkshops = recentRoots
+    .filter((root) => root !== workshop?.root)
+    .map((root) => toRecentWorkshop(root));
+
   // Render nothing until the last workshop is back, so the welcome screen doesn't flash first.
   if (restoring) return null;
 
@@ -151,6 +186,8 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
     <>
       {workshop === undefined ? (
         <WelcomeScreen
+          recentWorkshops={recentWorkshops}
+          onOpenRecentWorkshop={(recent) => void openRecentWorkshop(recent).catch(reportError)}
           onOpenWorkshop={() => void openWorkshop().catch(reportError)}
           onCreateWorkshop={createWorkshop}
         />
@@ -161,6 +198,8 @@ export function WorkshopSwitcher({ client, openFiles, layouts }: WorkshopSwitche
           openFiles={openFiles}
           layouts={layouts}
           sidebarWidth={sidebarWidth}
+          recentWorkshops={recentWorkshops}
+          onOpenRecentWorkshop={(recent) => void openRecentWorkshop(recent).catch(reportError)}
           onSidebarWidthChange={(width) => {
             setSidebarWidth(width);
             window.hone.setSidebarWidth(width).catch(reportError);

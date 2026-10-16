@@ -94,4 +94,46 @@ describe("AppStateFile", () => {
     await writeFile(file, JSON.stringify({ sidebarWidth: -20 }));
     await expect(new AppStateFile(file).getSidebarWidth()).resolves.toBeUndefined();
   });
+
+  it("has no recent workshops in a file that never had the key", async () => {
+    const file = await stateFilePath();
+    await writeFile(file, JSON.stringify({ lastWorkshop: "/home/user/studies" }));
+    await expect(new AppStateFile(file).getRecentWorkshops()).resolves.toStrictEqual([]);
+  });
+
+  it("lists recent workshops most recent first, moving a reopened one to the front", async () => {
+    const state = new AppStateFile(await stateFilePath());
+    await state.addRecentWorkshop("/a");
+    await state.addRecentWorkshop("/b");
+    await state.addRecentWorkshop("/c");
+    await expect(state.addRecentWorkshop("/a")).resolves.toStrictEqual(["/a", "/c", "/b"]);
+    await expect(state.getRecentWorkshops()).resolves.toStrictEqual(["/a", "/c", "/b"]);
+  });
+
+  it("keeps only the 5 latest recent workshops", async () => {
+    const state = new AppStateFile(await stateFilePath());
+    await state.addRecentWorkshop("/1");
+    await state.addRecentWorkshop("/2");
+    await state.addRecentWorkshop("/3");
+    await state.addRecentWorkshop("/4");
+    await state.addRecentWorkshop("/5");
+    await state.addRecentWorkshop("/6");
+    await expect(state.getRecentWorkshops()).resolves.toStrictEqual(["/6", "/5", "/4", "/3", "/2"]);
+  });
+
+  it("drops a workshop from the recent list, keeping the other keys", async () => {
+    const file = await stateFilePath();
+    await writeFile(file, JSON.stringify({ lastWorkshop: "/b", recentWorkshops: ["/b", "/a"] }));
+    const state = new AppStateFile(file);
+    await expect(state.removeRecentWorkshop("/a")).resolves.toStrictEqual(["/b"]);
+    await expect(state.getLastWorkshop()).resolves.toBe("/b");
+  });
+
+  it("ignores recent workshops of the wrong shape without losing the rest of the state", async () => {
+    const file = await stateFilePath();
+    await writeFile(file, JSON.stringify({ lastWorkshop: "/a", recentWorkshops: "/a" }));
+    const state = new AppStateFile(file);
+    await expect(state.getRecentWorkshops()).resolves.toStrictEqual([]);
+    await expect(state.getLastWorkshop()).resolves.toBe("/a");
+  });
 });

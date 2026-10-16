@@ -5,6 +5,8 @@ import { z } from "zod";
 // Loose, so keys this version doesn't know about survive a write.
 const appStateSchema = z.looseObject({
   lastWorkshop: z.string().optional(),
+  /** The roots of the workshops opened last, most recent first. A value of the wrong shape reads as unset. */
+  recentWorkshops: z.array(z.string()).optional().catch(undefined),
   /** Each workshop's editor area layout, by workshop root. The renderer validates it when it loads one. */
   layouts: z.record(z.string(), z.unknown()).optional(),
   /** In pixels. A value that isn't a positive number reads as unset, without discarding the rest of the file. */
@@ -12,6 +14,8 @@ const appStateSchema = z.looseObject({
 });
 
 type AppState = z.infer<typeof appStateSchema>;
+
+const maxRecentWorkshops = 5;
 
 function isMissingFileError(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
@@ -36,6 +40,23 @@ export class AppStateFile {
     return this.update((state) => ({ ...state, lastWorkshop: root }));
   }
 
+  /** The roots of the last workshops opened, most recent first. */
+  async getRecentWorkshops(): Promise<string[]> {
+    return (await this.inTurn(() => this.read())).recentWorkshops ?? [];
+  }
+
+  /** Moves `root` to the front of the recent workshops, keeping the 5 latest. Resolves with the new list. */
+  async addRecentWorkshop(root: string): Promise<string[]> {
+    return this.updateRecentWorkshops((recent) =>
+      [root, ...recent.filter((other) => other !== root)].slice(0, maxRecentWorkshops),
+    );
+  }
+
+  /** Drops `root` from the recent workshops. Resolves with the new list. */
+  async removeRecentWorkshop(root: string): Promise<string[]> {
+    return this.updateRecentWorkshops((recent) => recent.filter((other) => other !== root));
+  }
+
   /** The layout last saved for the workshop at `root`, if any, unvalidated. */
   async getLayout(root: string): Promise<unknown> {
     return (await this.inTurn(() => this.read())).layouts?.[root];
@@ -52,6 +73,15 @@ export class AppStateFile {
 
   setSidebarWidth(width: number): Promise<void> {
     return this.update((state) => ({ ...state, sidebarWidth: width }));
+  }
+
+  private async updateRecentWorkshops(change: (recent: string[]) => string[]): Promise<string[]> {
+    let recentWorkshops: string[] = [];
+    await this.update((state) => {
+      recentWorkshops = change(state.recentWorkshops ?? []);
+      return { ...state, recentWorkshops };
+    });
+    return recentWorkshops;
   }
 
   private update(change: (state: AppState) => AppState): Promise<void> {
