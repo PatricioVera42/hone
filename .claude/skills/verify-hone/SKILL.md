@@ -21,7 +21,7 @@ Never drive the user's own Hone window or their `~/hone-dev` workshop. The runne
 pnpm verify doctor
 ```
 
-Read-only. Prints `ok` or `FAIL` for Node 24+, `xvfb-run` on `PATH`, the Linux Electron binary in `packages/app/node_modules/electron` (an interrupted `pnpm dev` can leave the Windows one; `pnpm install` restores it), and no live processes from earlier runs. An `info` line also flags runs whose scratch folder is still in `/tmp`. Exit code 0 means a run can start. `run` calls it first and stops on a `FAIL`. Run it yourself whenever a run fails strangely.
+Read-only. Prints `ok` or `FAIL` for Node 24+, `xvfb-run` on `PATH`, the Linux Electron binary in `packages/app/node_modules/electron` (a fresh checkout has none, and an interrupted `pnpm dev` leaves the Windows one; `pnpm verify run` and `pnpm test:e2e` install the Linux one themselves, `doctor` only reports it), and no live processes from earlier runs. An `info` line also flags runs whose scratch folder is still in `/tmp`. Exit code 0 means a run can start. `run` calls it first and stops on a `FAIL`. Run it yourself whenever a run fails strangely.
 
 ## Launch and drive
 
