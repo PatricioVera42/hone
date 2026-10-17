@@ -20,6 +20,8 @@ interface Window {
     /** The layout last saved for the workshop at `root`, kept in Electron's `userData`. Unvalidated. */
     loadLayout(root: string): Promise<unknown>;
     saveLayout(root: string, layout: unknown): Promise<void>;
+    /** Asks main to open `url` in the system's default browser. Main ignores it unless the protocol is `http:` or `https:`. */
+    openExternal(url: string): Promise<void>;
     /**
      * Registers what main runs before the window closes, which resolves with whether edits are still pending. Main
      * closes the window once it settles without pending edits, or after 2 seconds; with pending edits, it asks

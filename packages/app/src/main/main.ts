@@ -1,6 +1,6 @@
 // Electron main: starts the host (WSL on Windows, a local `node` on Linux), then opens the window.
 import { hostReadyLine } from "@hone/protocol";
-import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import {
   execFile,
   execFileSync,
@@ -12,6 +12,7 @@ import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { AppStateFile } from "./app-state.ts";
+import { browserUrl } from "./external-url.ts";
 import { chooseStartFolder } from "./start-folder.ts";
 
 function argValue(name: string): string | undefined {
@@ -221,6 +222,11 @@ async function start(): Promise<void> {
     host.current.kill();
     host.current = await startHost();
     window.webContents.reload();
+  });
+
+  ipcMain.handle("shell:open-external", async (_event, url: unknown) => {
+    const allowed = browserUrl(url);
+    if (allowed !== undefined) await shell.openExternal(allowed);
   });
 
   const appState = new AppStateFile(path.join(app.getPath("userData"), "state.json"));

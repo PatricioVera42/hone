@@ -36,6 +36,7 @@ import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
 import { indentKeymap } from "@/indent-keymap.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
+import { linkOpening } from "@/link-opening.ts";
 import { livePreview, livePreviewTheme } from "@/live-preview.ts";
 import type { EditorContent } from "@/open-file.ts";
 import { reportError } from "@/report-error.ts";
@@ -116,6 +117,9 @@ const noteExtensions: Extension = [
   syntaxHighlighting(headingSizeStyle),
   livePreview,
   livePreviewTheme,
+  linkOpening((url) => {
+    window.hone.openExternal(url).catch(reportError);
+  }),
 ];
 
 // Tab, Shift+Tab and Ctrl+L indent and select lines only in code; in a note Tab moves focus, as on a web page.
