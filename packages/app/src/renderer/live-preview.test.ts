@@ -5,18 +5,28 @@ import { EditorSelection, EditorState, type SelectionRange } from "@codemirror/s
 import { describe, expect, it } from "vitest";
 import { previewSpans } from "./live-preview.ts";
 
-/** The text `previewSpans` hides in `doc` with the given selection, which is a cursor at 0 unless given. */
-function spans(doc: string, ...selection: SelectionRange[]) {
+/**
+ * A state whose syntax tree covers all of `doc`. `EditorState.create` parses for only 20 ms, and `ensureSyntaxTree`
+ * finishes the parse but leaves `syntaxTree(state)` on the partial tree, which an update brings up to date.
+ */
+function parsedState(doc: string, selection: SelectionRange[] = [cursor(0)]): EditorState {
   const state = EditorState.create({
     doc,
     extensions: [
       yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
       EditorState.allowMultipleSelections.of(true),
     ],
-    selection: selection.length > 0 ? EditorSelection.create(selection) : { anchor: 0 },
+    selection: EditorSelection.create(selection),
   });
   ensureSyntaxTree(state, doc.length, 5000);
-  return previewSpans(state, [{ from: 0, to: doc.length }]);
+  return state.update({}).state;
+}
+
+/** What `previewSpans` finds in `doc` with the given selection, which is a cursor at 0 unless given. */
+function spans(doc: string, ...selection: SelectionRange[]) {
+  return previewSpans(parsedState(doc, selection.length > 0 ? selection : undefined), [
+    { from: 0, to: doc.length },
+  ]);
 }
 
 function hiddenText(doc: string, ...selection: SelectionRange[]): string[] {
@@ -148,12 +158,7 @@ describe("selections", () => {
 describe("the visible part", () => {
   it("is the only part computed", () => {
     const doc = "**first**\n\n**second**";
-    const state = EditorState.create({
-      doc,
-      extensions: markdown({ base: markdownLanguage }),
-      selection: { anchor: doc.length },
-    });
-    ensureSyntaxTree(state, doc.length, 5000);
+    const state = parsedState(doc, [cursor(doc.length)]);
     const { hidden } = previewSpans(state, [{ from: 0, to: 9 }]);
     expect(hidden.map((span) => doc.slice(span.from, span.to))).toEqual(["**", "**"]);
     expect(hidden[0]?.from).toBe(0);
@@ -214,6 +219,14 @@ describe("quotes", () => {
     expect(hidden).toHaveLength(3);
   });
 
+  it("show the `>` of every line a selection reaches, the line it ends at the start of included", () => {
+    const note = "intro\n\n> first\n> second\n> third\n\nend";
+    const from = note.indexOf("first") + 2;
+    const to = note.indexOf("> second");
+    expect(textOf(note, spans(note, range(from, to)).hidden)).toEqual(["> "]);
+    expect(spans(note, range(from, to)).hidden[0]?.from).toBe(note.indexOf("> third"));
+  });
+
   it("hide the `>` of an empty quote line", () => {
     const note = ">\n> text\n\nend";
     expect(textOf(note, spans(note, cursor(note.length)).hidden)).toEqual([">", "> "]);
@@ -264,6 +277,23 @@ describe("code blocks", () => {
     }
   });
 
+  it("show the fences of a block one cursor is in without revealing what another cursor is outside of", () => {
+    const note = "**b**\n\n```\ncode\n```\n\nend";
+    const found = spans(note, cursor(note.indexOf("code")), cursor(note.length));
+    expect(textOf(note, found.hidden)).toEqual(["**", "**"]);
+  });
+
+  it("hide the `>` of every line of a block inside a quote, the fences too", () => {
+    const note = "> ```js\n> let a;\n> ```\n\nend";
+    expect(textOf(note, spans(note, cursor(note.length)).hidden)).toEqual([
+      "> ",
+      "```js",
+      "> ",
+      "> ",
+      "```",
+    ]);
+  });
+
   it("hide only the opening fence of a block still open at the end of the note", () => {
     const note = "intro\n\n```\ncode";
     expect(textOf(note, spans(note, cursor(0)).hidden)).toEqual(["```"]);
@@ -276,12 +306,7 @@ describe("code blocks", () => {
   });
 
   it("give only the visible lines their background", () => {
-    const state = EditorState.create({
-      doc,
-      extensions: markdown({ base: markdownLanguage }),
-      selection: { anchor: 0 },
-    });
-    ensureSyntaxTree(state, doc.length, 5000);
+    const state = parsedState(doc);
     const { lines } = previewSpans(state, [
       { from: doc.indexOf("const"), to: doc.indexOf("const") + 3 },
     ]);

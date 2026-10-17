@@ -40,14 +40,6 @@ export interface PreviewSpans {
   readonly lines: readonly { readonly at: number; readonly look: LineLook }[];
 }
 
-/** Child nodes holding the syntax of the inline elements that have nothing else to hide. */
-const inlineMarks = new Map([
-  ["Emphasis", "EmphasisMark"],
-  ["StrongEmphasis", "EmphasisMark"],
-  ["Strikethrough", "StrikethroughMark"],
-  ["InlineCode", "CodeMark"],
-]);
-
 /** Where each line touching `from` to `to` starts. */
 function* lineStarts(doc: Text, from: number, to: number): Generator<number> {
   for (let at = doc.lineAt(from).from; at <= to; at = doc.lineAt(at).to + 1) yield at;
@@ -116,14 +108,16 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
     return true;
   };
 
-  const inlineFormatting: NodeHandler = (node) => {
-    if (node.name === "InlineCode") inlineCode.push({ from: node.from, to: node.to });
-    if (!touchesSelection(selection, node)) {
-      for (const mark of node.getChildren(inlineMarks.get(node.name) ?? ""))
-        hide(mark.from, mark.to);
-    }
-    return true;
-  };
+  // For the inline elements that have nothing else to hide than the child nodes holding their syntax.
+  const inlineFormatting =
+    (markName: string): NodeHandler =>
+    (node) => {
+      if (node.name === "InlineCode") inlineCode.push({ from: node.from, to: node.to });
+      if (!touchesSelection(selection, node)) {
+        for (const mark of node.getChildren(markName)) hide(mark.from, mark.to);
+      }
+      return true;
+    };
 
   const listMark: NodeHandler = (node) => {
     const list = node.parent?.parent?.name;
@@ -144,13 +138,17 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
     return true;
   };
 
-  const quoteMark: NodeHandler = (node) => {
+  const hideQuoteMark = (node: SyntaxNode) => {
     // The reveal is per line, not per quote, so a long quote doesn't jump when the cursor enters it.
     if (!touchesSelection(selection, doc.lineAt(node.from))) {
       // The space after the `>` goes with it, or the quoted text would start indented.
       const gap = doc.sliceString(node.to, node.to + 1) === " " ? 1 : 0;
       hide(node.from, node.to + gap);
     }
+  };
+
+  const quoteMark: NodeHandler = (node) => {
+    hideQuoteMark(node);
     return true;
   };
 
@@ -174,6 +172,8 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
       if (opening !== undefined) hide(opening.from, doc.lineAt(opening.from).to);
       if (closing !== undefined) hide(closing.from, doc.lineAt(closing.from).to);
     }
+    // The `>` of a quoted block's later lines are children of the block, which isn't walked.
+    for (const mark of node.getChildren("QuoteMark")) hideQuoteMark(mark);
     // What's inside is code, not Markdown: a list inside it isn't a list.
     return false;
   };
@@ -185,7 +185,10 @@ export function previewSpans(state: EditorState, visible: readonly Span[]): Prev
     ["QuoteMark", quoteMark],
     ["HorizontalRule", horizontalRule],
     ["FencedCode", fencedCode],
-    ...[...inlineMarks.keys()].map((name): [string, NodeHandler] => [name, inlineFormatting]),
+    ["Emphasis", inlineFormatting("EmphasisMark")],
+    ["StrongEmphasis", inlineFormatting("EmphasisMark")],
+    ["Strikethrough", inlineFormatting("StrikethroughMark")],
+    ["InlineCode", inlineFormatting("CodeMark")],
   ]);
 
   const tree = syntaxTree(state);
@@ -277,13 +280,14 @@ export const livePreviewTheme = EditorView.theme({
     borderLeft: "var(--quote-bar-width) solid var(--quote-bar)",
     paddingLeft: "var(--quote-indent)",
   },
-  // A rule is its line's own height with a 1px line across the middle, so it doesn't change how the note flows.
+  // A rule is its line's own height with a line across the middle, so it doesn't change how the note flows.
   ".cm-rule-line": {
     backgroundImage: "linear-gradient(var(--rule), var(--rule))",
-    backgroundSize: "100% 1px",
+    backgroundSize: "100% var(--rule-width)",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
   },
+  // A code block inside a quote keeps the quote's bar, and this padding replaces the quote's own between bar and text.
   ".cm-code-block-line": {
     fontFamily: "var(--font-code)",
     backgroundColor: "var(--muted)",

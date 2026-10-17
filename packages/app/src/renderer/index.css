@@ -138,6 +138,7 @@
   --quote-bar: var(--muted-foreground);
   --quote-bar-width: 3px;
   --quote-indent: 0.75em;
+  --rule-width: 1px;
   --rule: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
   --code-block-padding: 0.75em;
   /* The editors, read by code-editor.tsx. A note's text column is at most this wide, in the note's font. */
