@@ -159,3 +159,132 @@ describe("the visible part", () => {
     expect(hidden[0]?.from).toBe(0);
   });
 });
+
+/** The text of each span, in document order. */
+function textOf(doc: string, found: readonly { from: number; to: number }[]): string[] {
+  return found.toSorted((a, b) => a.from - b.from).map((span) => doc.slice(span.from, span.to));
+}
+
+describe("lists", () => {
+  const doc = "intro\n\n- one\n  * nested\n+ plus\n\n1. first\n2) second\n\nend";
+
+  it("draw every kind of bullet marker as a bullet and leave numbers as typed", () => {
+    const found = spans(doc, cursor(doc.length));
+    expect(textOf(doc, found.bullets)).toEqual(["-", "*", "+"]);
+    expect(textOf(doc, found.numbers)).toEqual(["1.", "2)"]);
+    expect(found.hidden).toEqual([]);
+  });
+
+  it("show a bullet as typed only with the cursor on its marker", () => {
+    const at = doc.indexOf("- one");
+    expect(textOf(doc, spans(doc, cursor(at)).bullets)).toEqual(["*", "+"]);
+    expect(textOf(doc, spans(doc, cursor(at + 1)).bullets)).toEqual(["*", "+"]);
+    // The text of the item is not the marker.
+    expect(textOf(doc, spans(doc, cursor(at + 3)).bullets)).toEqual(["-", "*", "+"]);
+  });
+
+  it("show the markers a selection spans", () => {
+    const from = doc.indexOf("one");
+    const to = doc.indexOf("plus");
+    expect(textOf(doc, spans(doc, range(from, to)).bullets)).toEqual(["-"]);
+  });
+
+  it("are not lists inside a code block", () => {
+    const note = "```\n- not a list\n1. nor this\n```\n\nend";
+    const found = spans(note, cursor(note.length));
+    expect(found.bullets).toEqual([]);
+    expect(found.numbers).toEqual([]);
+  });
+});
+
+describe("quotes", () => {
+  const doc = "intro\n\n> first\n> second\nlazy\n\n> > deep\n\nend";
+
+  it("hide each `>` with the space after it and give every line of the quote its bar", () => {
+    const found = spans(doc, cursor(doc.length));
+    expect(textOf(doc, found.hidden)).toEqual(["> ", "> ", "> ", "> "]);
+    const barred = found.lines.filter(({ look }) => look === "quote").map(({ at }) => at);
+    const starts = ["> first", "> second", "lazy", "> > deep"].map((line) => doc.indexOf(line));
+    expect(barred.toSorted((a, b) => a - b)).toEqual(starts);
+  });
+
+  it("show the `>` of the line the cursor is on and keep hiding the others", () => {
+    const hidden = spans(doc, cursor(doc.indexOf("second") + 2)).hidden;
+    expect(hidden.map((span) => span.from)).not.toContain(doc.indexOf("> second"));
+    expect(hidden).toHaveLength(3);
+  });
+
+  it("hide the `>` of an empty quote line", () => {
+    const note = ">\n> text\n\nend";
+    expect(textOf(note, spans(note, cursor(note.length)).hidden)).toEqual([">", "> "]);
+  });
+});
+
+describe("horizontal rules", () => {
+  const doc = "above\n\n---\n\n***\n\nbelow";
+
+  it("hide their text and draw their line", () => {
+    const found = spans(doc, cursor(doc.length));
+    expect(textOf(doc, found.hidden)).toEqual(["---", "***"]);
+    expect(found.lines.map(({ at }) => at)).toEqual([doc.indexOf("---"), doc.indexOf("***")]);
+  });
+
+  it("show their text with the cursor on them", () => {
+    const found = spans(doc, cursor(doc.indexOf("---") + 1));
+    expect(textOf(doc, found.hidden)).toEqual(["***"]);
+  });
+
+  it("are not made from the line under a paragraph, which is a heading", () => {
+    const note = "Title\n---\n\nend";
+    expect(spans(note, cursor(note.length)).lines).toEqual([]);
+  });
+
+  it("are not made from a frontmatter's fences", () => {
+    const note = "---\nname: x\n---\n\nend";
+    expect(spans(note, cursor(note.length)).lines).toEqual([]);
+  });
+});
+
+describe("code blocks", () => {
+  const doc = "intro\n\n```ts\nconst x = 1;\n\nlet y;\n```\n\nend";
+
+  it("hide both fences, the language included, and put every line on the code background", () => {
+    const found = spans(doc, cursor(doc.length));
+    expect(textOf(doc, found.hidden)).toEqual(["```ts", "```"]);
+    const code = found.lines.filter(({ look }) => look === "code").map(({ at }) => at);
+    expect(code).toHaveLength(5);
+    expect(code[0]).toBe(doc.indexOf("```ts"));
+  });
+
+  it("show both fences with the cursor anywhere in the block, edges included", () => {
+    for (const at of [doc.indexOf("```ts"), doc.indexOf("const"), doc.indexOf("\n\nend")]) {
+      const found = spans(doc, cursor(at));
+      expect(found.hidden).toEqual([]);
+      expect(found.lines.filter(({ look }) => look === "code")).toHaveLength(5);
+    }
+  });
+
+  it("hide only the opening fence of a block still open at the end of the note", () => {
+    const note = "intro\n\n```\ncode";
+    expect(textOf(note, spans(note, cursor(0)).hidden)).toEqual(["```"]);
+  });
+
+  it("leave Markdown inside as it is", () => {
+    const note = "```md\n**bold** and [a](b)\n```\n\nend";
+    const found = spans(note, cursor(note.length));
+    expect(textOf(note, found.hidden)).toEqual(["```md", "```"]);
+  });
+
+  it("give only the visible lines their background", () => {
+    const state = EditorState.create({
+      doc,
+      extensions: markdown({ base: markdownLanguage }),
+      selection: { anchor: 0 },
+    });
+    ensureSyntaxTree(state, doc.length, 5000);
+    const { lines } = previewSpans(state, [
+      { from: doc.indexOf("const"), to: doc.indexOf("const") + 3 },
+    ]);
+    expect(lines).toEqual([{ at: doc.indexOf("const"), look: "code" }]);
+  });
+});

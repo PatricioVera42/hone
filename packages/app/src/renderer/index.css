@@ -133,6 +133,13 @@
   --heading-4-size: 1.25em;
   --heading-5-size: 1.125em;
   --heading-6-size: 1em;
+  /* The live preview of a note's lists, quotes, rules and code blocks, read by live-preview.ts. */
+  --list-marker: var(--muted-foreground);
+  --quote-bar: var(--muted-foreground);
+  --quote-bar-width: 3px;
+  --quote-indent: 0.75em;
+  --rule: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+  --code-block-padding: 0.75em;
   /* The editors, read by code-editor.tsx. A note's text column is at most this wide, in the note's font. */
   --note-max-width: 80ch;
   --line-number: oklch(0.556 0 0);
