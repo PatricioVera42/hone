@@ -35,6 +35,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { bracketClosing, noteBracketClosing } from "@/bracket-closing.ts";
 import { detectIndentUnit } from "@/detect-indent-unit.ts";
 import { indentKeymap } from "@/indent-keymap.ts";
+import { isNote } from "@/is-note.ts";
 import { createLanguageLoader } from "@/language-loader.ts";
 import { linkOpening } from "@/link-opening.ts";
 import { livePreview, livePreviewTheme } from "@/live-preview.ts";
@@ -114,6 +115,10 @@ const noteExtensions: Extension = [
   // The frontmatter is parsed as YAML, or `markdown` would read its closing `---` as a heading underline.
   yamlFrontmatter({ content: markdown({ base: markdownLanguage, codeLanguages: languages }) }),
   noteBracketClosing,
+];
+
+// What a note adds in live preview. Without it the note shows its Markdown as typed.
+const livePreviewExtensions: Extension = [
   syntaxHighlighting(headingSizeStyle),
   livePreview,
   livePreviewTheme,
@@ -130,10 +135,6 @@ const codeExtensions: Extension = [
   EditorView.theme({ ".cm-scroller": { fontFamily: "var(--font-code)" } }),
 ];
 
-function isNote(path: string): boolean {
-  return path.toLowerCase().endsWith(".md");
-}
-
 // Without Ctrl+M's persistent tab-focus mode, which nothing on screen shows: once on, Tab silently stops indenting.
 // Escape then Tab still moves focus out of a code file, for that one Tab.
 const keymapWithoutTabFocusToggle = defaultKeymap.filter(
@@ -144,6 +145,7 @@ const keymapWithoutTabFocusToggle = defaultKeymap.filter(
 const languageCompartment = new Compartment();
 const modeCompartment = new Compartment();
 const labelCompartment = new Compartment();
+const livePreviewCompartment = new Compartment();
 
 const noteMode: Extension = noteExtensions;
 const codeMode: Extension = [codeExtensions, languageCompartment.of([])];
@@ -170,6 +172,10 @@ interface CodeEditorProps {
    * accessible name, its language and whether it shows a note or code, without rebuilding the editor.
    */
   readonly path: string;
+  /** Whether a note is drawn in live preview or shown as text. Code files ignore it. */
+  readonly preview: boolean;
+  /** Called when Ctrl+E asks to switch a note between live preview and text. */
+  readonly onTogglePreview: () => void;
   /** The content the editor starts with. Later changes come through the {@link EditorContent} given to `connect`. */
   readonly content: string;
   /** Called once the editor is mounted, with a handle to read and replace its content. */
@@ -180,12 +186,18 @@ interface CodeEditorProps {
  * A CodeMirror editor for a file's content. A note gets Markdown with GFM and a live preview; any other file gets the language
  * `@codemirror/language-data` matches by name or extension, loaded on demand, or plain text.
  */
-export function CodeEditor({ path, content, connect }: CodeEditorProps) {
+export function CodeEditor({ path, preview, onTogglePreview, content, connect }: CodeEditorProps) {
   const parent = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(undefined);
   const languageLoader = useRef<ReturnType<typeof createLanguageLoader>>(undefined);
-  // Read once when the view is built; later paths come through the compartments.
+  // Read once when the view is built; later paths and modes come through the compartments.
   const initialPath = useEffectEvent(() => path);
+  const initialPreview = useEffectEvent(() => preview);
+  // Read when the key is pressed, so they must be current rather than the ones the view was built with.
+  const latest = useRef({ path, onTogglePreview });
+  useEffect(() => {
+    latest.current = { path, onTogglePreview };
+  });
   // Not a dependency of the view's effect: a new callback mustn't rebuild the view and lose what's in it.
   const connectEditor = useEffectEvent(connect);
 
@@ -220,10 +232,23 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
             ...historyKeymap,
             // historyKeymap binds Ctrl+Shift+Z to redo only on Linux.
             { win: "Ctrl-Shift-z", run: redo, preventDefault: true },
+            {
+              // The defaultKeymap binds Ctrl+E only on macOS, so it's free here.
+              key: "Ctrl-e",
+              run: () => {
+                if (!isNote(latest.current.path)) return false;
+                latest.current.onTogglePreview();
+                return true;
+              },
+              preventDefault: true,
+            },
           ]),
           syntaxHighlighting(highlightStyle),
           theme,
           modeCompartment.of(isNote(initialPath()) ? noteMode : codeMode),
+          livePreviewCompartment.of(
+            isNote(initialPath()) && initialPreview() ? livePreviewExtensions : [],
+          ),
         ],
       }),
     });
@@ -283,6 +308,16 @@ export function CodeEditor({ path, content, connect }: CodeEditorProps) {
     // A language that fails to load leaves the file readable as plain text.
     languageLoader.current?.load(description).catch(reportError);
   }, [path, content]);
+
+  useEffect(() => {
+    const editorView = view.current;
+    if (editorView === undefined) return;
+    editorView.dispatch({
+      effects: livePreviewCompartment.reconfigure(
+        isNote(path) && preview ? livePreviewExtensions : [],
+      ),
+    });
+  }, [path, preview, content]);
 
   return <div ref={parent} className="h-full" />;
 }
