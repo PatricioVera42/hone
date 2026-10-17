@@ -25,7 +25,7 @@ export function fillWindowsElectronCache(
   installElectron();
 }
 
-function clearInstall(electronDir: string): void {
+export function clearInstall(electronDir: string): void {
   rmSync(path.join(electronDir, "dist"), { recursive: true, force: true });
   rmSync(path.join(electronDir, "path.txt"), { force: true });
 }

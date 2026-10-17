@@ -15,6 +15,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { inspect } from "node:util";
 import { z } from "zod";
+import { ensureLinuxElectron, hasLinuxElectron } from "../scripts/linux-electron.ts";
 import * as helpers from "./helpers.ts";
 
 const appDir = path.join(import.meta.dirname, "..");
@@ -93,8 +94,6 @@ function check(ok: boolean, label: string, fix: string): boolean {
 /** Read-only: whether this machine can run a verification now. */
 async function doctor(): Promise<boolean> {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
-  const electronPath = path.join(appDir, "node_modules", "electron", "path.txt");
-  const electronBinary = existsSync(electronPath) ? readFileSync(electronPath, "utf8").trim() : "";
   let xvfb = true;
   try {
     execFileSync("which", ["xvfb-run"], { stdio: "ignore" });
@@ -112,9 +111,9 @@ async function doctor(): Promise<boolean> {
     check(nodeMajor >= 24, `Node ${process.versions.node}`, "needs Node 24 or later"),
     check(xvfb, "xvfb-run on PATH", "sudo apt install xvfb"),
     check(
-      electronBinary === "electron",
-      `Linux Electron installed (path.txt: ${electronBinary || "missing"})`,
-      "pnpm install restores it; an interrupted pnpm dev can leave the Windows one",
+      hasLinuxElectron(path.join(appDir, "node_modules", "electron")),
+      "Linux Electron installed",
+      "missing, or the Windows one that pnpm dev leaves; pnpm verify run installs it",
     ),
     check(
       leftovers.length === 0,
@@ -152,6 +151,7 @@ function timestamp(): string {
 
 /** Runs `journey` in a new run folder. Returns the process exit code. */
 async function runJourney(journeyFile: string, keep: boolean): Promise<number> {
+  ensureLinuxElectron(appDir);
   if (!(await doctor())) return 1;
   const journey = await loadJourney(journeyFile);
   execFileSync("pnpm", ["build"], { cwd: appDir, stdio: ["ignore", "ignore", "inherit"] });

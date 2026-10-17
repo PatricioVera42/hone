@@ -46,7 +46,7 @@ Create a workshop from the welcome screen, open a terminal in its `.hone/generat
 
 ### End-to-end tests
 
-`pnpm test:e2e` runs Playwright against the built app, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does. Playwright's global setup (`e2e/global-setup.ts`) runs `pnpm build` first on every run, so the tests never drive a stale build. Extra arguments go to Playwright, as in `pnpm test:e2e -g "renames"`.
+`pnpm test:e2e` runs Playwright against the built app, driving the real Electron window instead of Vitest mocks. The main process launches the host itself, the way the built app does, so the tests need the same environment `pnpm dev` does. Playwright's global setup (`e2e/global-setup.ts`) first installs the Linux Electron if it's missing, then runs `pnpm build` on every run, so the tests never drive a stale build. Extra arguments go to Playwright, as in `pnpm test:e2e -g "renames"`.
 
 The script runs Playwright under `xvfb-run`, a virtual display, and unsets `WAYLAND_DISPLAY` so Electron doesn't draw on WSLg's real display instead. The tests launch Electron with `--no-sandbox`; the app itself never turns its sandbox off (`hone/electron-security` guards against that).
 
