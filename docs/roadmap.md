@@ -24,8 +24,7 @@ The repo goes public when the first Sandcastle loop runs, since that's when impl
 1. Make `PatricioVera42/hone` public. On GitHub Free, rulesets and unlimited Actions minutes need a public repo.
 2. Add the CI workflow that runs `pnpm check` ([research/git-hooks-and-ci.md](../research/git-hooks-and-ci.md)).
 3. Turn on a ruleset on `main`: pull request required, the `check` job required, the maintainer in the bypass list for docs.
-4. Install CodeRabbit on the repo, with a short `.coderabbit.yaml`.
-5. Set up the issue tracker and triage labels for `to-spec`, `to-tickets` and `triage`, and configure Sandcastle.
+4. Set up the issue tracker and triage labels for `to-spec`, `to-tickets` and `triage`, and configure Sandcastle.
 
 Done on 2026-09-26 (#13): the repo is public, CI runs `pnpm check`, the ruleset protects `main`, and `pnpm sandcastle <issue>` runs the loop (see the README). A throwaway issue went through the whole loop to a green pull request, and a failing `pnpm check` pushes nothing.
 
