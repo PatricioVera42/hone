@@ -169,7 +169,12 @@ export function EditorBreadcrumbs({
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button variant="ghost" size="sm" onClick={onTogglePreview}>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={preview ? "Switch to text" : "Switch to live preview"}
+                onClick={onTogglePreview}
+              >
                 <HugeiconsIcon icon={preview ? EyeIcon : CodeIcon} strokeWidth={2} />
                 {preview ? "Live preview" : "Text"}
               </Button>

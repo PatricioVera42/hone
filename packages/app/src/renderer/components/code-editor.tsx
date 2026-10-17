@@ -115,6 +115,9 @@ const noteExtensions: Extension = [
   // The frontmatter is parsed as YAML, or `markdown` would read its closing `---` as a heading underline.
   yamlFrontmatter({ content: markdown({ base: markdownLanguage, codeLanguages: languages }) }),
   noteBracketClosing,
+  linkOpening((url) => {
+    window.hone.openExternal(url).catch(reportError);
+  }),
 ];
 
 // What a note adds in live preview. Without it the note shows its Markdown as typed.
@@ -122,9 +125,6 @@ const livePreviewExtensions: Extension = [
   syntaxHighlighting(headingSizeStyle),
   livePreview,
   livePreviewTheme,
-  linkOpening((url) => {
-    window.hone.openExternal(url).catch(reportError);
-  }),
 ];
 
 // Tab, Shift+Tab and Ctrl+L indent and select lines only in code; in a note Tab moves focus, as on a web page.
@@ -195,6 +195,7 @@ export function CodeEditor({ path, preview, onTogglePreview, content, connect }:
   const initialPreview = useEffectEvent(() => preview);
   // Read when the key is pressed, so they must be current rather than the ones the view was built with.
   const latest = useRef({ path, onTogglePreview });
+  const shownPreview = useRef(preview);
   useEffect(() => {
     latest.current = { path, onTogglePreview };
   });
@@ -317,6 +318,9 @@ export function CodeEditor({ path, preview, onTogglePreview, content, connect }:
         isNote(path) && preview ? livePreviewExtensions : [],
       ),
     });
+    // The button that switched the mode took the focus, and Ctrl+E only works while the editor has it.
+    if (shownPreview.current !== preview) editorView.focus();
+    shownPreview.current = preview;
   }, [path, preview, content]);
 
   return <div ref={parent} className="h-full" />;
