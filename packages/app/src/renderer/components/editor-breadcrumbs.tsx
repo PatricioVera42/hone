@@ -1,5 +1,8 @@
 import { filesListMethod, type FileEntry } from "@hone/protocol";
+import { CodeIcon, EyeIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Fragment, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,8 +19,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { ancestorFolders, childPath, entryName } from "@/entry-path.ts";
 import type { HostClient } from "@/host-client.ts";
+import { isNote } from "@/is-note.ts";
 import { errorMessage, reportError } from "@/report-error.ts";
 import { sortEntries } from "@/sort-entries.ts";
 
@@ -112,6 +117,9 @@ interface EditorBreadcrumbsProps {
   /** The open file's protocol path, relative to the workshop root. */
   readonly path: string;
   readonly onOpenFile: (path: string) => void;
+  /** Whether the note is in live preview (or text). Only used for a note, which gets the button that switches it. */
+  readonly preview: boolean;
+  readonly onTogglePreview: () => void;
 }
 
 /**
@@ -123,11 +131,13 @@ export function EditorBreadcrumbs({
   workshopName,
   path,
   onOpenFile,
+  preview,
+  onTogglePreview,
 }: EditorBreadcrumbsProps) {
   const [toastedFolders] = useState(() => new Set<string>());
   const folders = [{ name: workshopName, path: "" }, ...ancestorFolders(path)];
   return (
-    <div className="shrink-0 px-3 py-1.5">
+    <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1.5">
       <Breadcrumb>
         <BreadcrumbList>
           {folders.map((folder) => (
@@ -155,6 +165,26 @@ export function EditorBreadcrumbs({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+      {isNote(path) ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={preview ? "Switch to text" : "Switch to live preview"}
+                onClick={onTogglePreview}
+              >
+                <HugeiconsIcon icon={preview ? EyeIcon : CodeIcon} strokeWidth={2} />
+                {preview ? "Live preview" : "Text"}
+              </Button>
+            }
+          />
+          <TooltipContent>
+            {preview ? "Switch to text" : "Switch to live preview"} (Ctrl+E)
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }

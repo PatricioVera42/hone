@@ -60,6 +60,8 @@ export function EditorPanel({
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // Read once, from where the file was when its tab opened: a rename moves the open file along instead.
   const [openedPath] = useState(path);
+  // Per tab and not remembered: every note opens in live preview.
+  const [preview, setPreview] = useState(true);
   const fileMissingEvent = useEffectEvent(onDeleted);
 
   useEffect(() => {
@@ -91,6 +93,9 @@ export function EditorPanel({
     );
   }
   const { version } = state;
+  function togglePreview() {
+    setPreview((current) => !current);
+  }
   function connect(editor: EditorContent): EditorConnection {
     const file = new OpenFile({
       client,
@@ -129,9 +134,17 @@ export function EditorPanel({
         workshopName={workshopName}
         path={path}
         onOpenFile={onOpenFile}
+        preview={preview}
+        onTogglePreview={togglePreview}
       />
       <div className="min-h-0 flex-1">
-        <CodeEditor path={path} content={state.content} connect={connect} />
+        <CodeEditor
+          path={path}
+          preview={preview}
+          onTogglePreview={togglePreview}
+          content={state.content}
+          connect={connect}
+        />
       </div>
     </div>
   );
