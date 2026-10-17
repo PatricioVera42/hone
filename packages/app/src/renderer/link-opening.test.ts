@@ -22,6 +22,13 @@ describe("linkUrlAt", () => {
     expect(urlAt(doc, "example.com")).toBe("https://example.com/p.pdf");
   });
 
+  it("opens the destination, not the text, of a link whose text is a url", () => {
+    const doc = "[https://a.b/shown](https://evil.c/real)";
+    for (const at of ["https://a.b", "[https", "](https", "evil.c"]) {
+      expect(urlAt(doc, at), at).toBe("https://evil.c/real");
+    }
+  });
+
   it("finds an autolink and a bare url", () => {
     expect(urlAt("a <https://example.com/x> b", "example")).toBe("https://example.com/x");
     expect(urlAt("a https://example.com/y b", "example")).toBe("https://example.com/y");
@@ -39,5 +46,6 @@ describe("linkUrlAt", () => {
   it("finds nothing in an image or a link with no url", () => {
     expect(urlAt("![alt](https://a.b/i.png)", "alt")).toBeUndefined();
     expect(urlAt("[text][ref]\n\n[ref]: https://a.b", "text")).toBeUndefined();
+    expect(urlAt("[https://a.b/shown][ref]", "a.b")).toBeUndefined();
   });
 });

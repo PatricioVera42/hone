@@ -1,6 +1,9 @@
 import { syntaxTree } from "@codemirror/language";
 import { type EditorState } from "@codemirror/state";
-import { ViewPlugin, type EditorView } from "@codemirror/view";
+import { ViewPlugin } from "@codemirror/view";
+
+// @lezer/common isn't a dependency of the app, so the node type comes from the tree.
+type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]>;
 
 /**
  * The URL of the link at `pos`, as typed, or `undefined` when `pos` isn't in one. That is a `[text](url)` link (its
@@ -9,19 +12,28 @@ import { ViewPlugin, type EditorView } from "@codemirror/view";
  */
 export function linkUrlAt(state: EditorState, pos: number): string | undefined {
   for (let node = syntaxTree(state).resolveInner(pos, 1); node.parent; node = node.parent) {
-    // A bare URL is a URL node of its own; in a link or an autolink the URL is a child of the node that wraps it.
-    const url =
-      node.name === "URL"
-        ? node
-        : node.name === "Link" || node.name === "Autolink"
-          ? node.getChild("URL")
-          : null;
+    let url: SyntaxNode | null = null;
+    if (node.name === "URL") {
+      if (node.parent.name === "Image") return undefined;
+      // Inside a link, a URL node is the link's text (or its autolink's own URL), which the wrapping node decides.
+      if (node.parent.name === "Link") continue;
+      url = node;
+    } else if (node.name === "Autolink") {
+      url = node.getChild("URL");
+    } else if (node.name === "Link") {
+      // The destination is the last URL, after the `(`: a link whose text is itself a URL has an earlier one.
+      const open = node.getChildren("LinkMark")[2];
+      if (open === undefined || state.sliceDoc(open.from, open.to) !== "(") continue;
+      url = node.getChildren("URL").findLast((child) => child.from >= open.to) ?? null;
+    }
     if (url === null) continue;
-    if (node.parent.name === "Image") return undefined;
     return state.sliceDoc(url.from, url.to).replace(/^<(.*)>$/, "$1");
   }
   return undefined;
 }
+
+/** Whether the hand is worth showing: only `http(s)` links open. Cosmetic; main decides what really opens. */
+const looksOpenable = /^https?:\/\//i;
 
 /**
  * Opens the link under a Ctrl+click through `open`, without moving the cursor, and shows a hand over links while
@@ -38,7 +50,8 @@ export function linkOpening(open: (url: string) => void) {
         return pos === null ? undefined : linkUrlAt(view.state, pos);
       };
       const showHand = () => {
-        const hand = ctrl && pointer !== undefined && urlUnder(pointer) !== undefined;
+        const url = ctrl && pointer !== undefined ? urlUnder(pointer) : undefined;
+        const hand = url !== undefined && looksOpenable.test(url);
         view.contentDOM.style.cursor = hand ? "pointer" : "";
       };
       const track = (event: MouseEvent | KeyboardEvent) => {
@@ -47,6 +60,8 @@ export function linkOpening(open: (url: string) => void) {
         showHand();
       };
       const release = () => {
+        // Forgotten, or every editor, hidden tabs included, would look up the old position on each Ctrl key event.
+        pointer = undefined;
         ctrl = false;
         showHand();
       };
@@ -74,12 +89,12 @@ export function linkOpening(open: (url: string) => void) {
         mouseleave() {
           this.release();
         },
-        mousedown(event: MouseEvent, _view: EditorView) {
+        mousedown(event: MouseEvent) {
           if (!event.ctrlKey || event.button !== 0) return false;
           const url = this.urlUnder({ x: event.clientX, y: event.clientY });
           if (url === undefined) return false;
-          // Stops the editor from moving the cursor or starting a selection.
           open(url);
+          // Handled: the editor doesn't move the cursor or start a selection.
           return true;
         },
       },
