@@ -3,10 +3,17 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { clearInstall } from "./windows-electron-cache.ts";
 
-/** Whether `path.txt` in the `electron` package names the Linux binary, which `install-electron` writes as `electron`. */
+/**
+ * Whether the `electron` package holds the Linux binary: `path.txt` names `electron`, which `install-electron` writes,
+ * and the binary exists, since an interrupted `clearInstall` can leave `path.txt` without `dist`.
+ */
 export function hasLinuxElectron(electronDir: string): boolean {
   const pathFile = path.join(electronDir, "path.txt");
-  return existsSync(pathFile) && readFileSync(pathFile, "utf8").trim() === "electron";
+  return (
+    existsSync(pathFile) &&
+    readFileSync(pathFile, "utf8").trim() === "electron" &&
+    existsSync(path.join(electronDir, "dist", "electron"))
+  );
 }
 
 /**
@@ -24,4 +31,10 @@ export function ensureLinuxElectron(appDir: string): void {
     env: { ...process.env, ELECTRON_INSTALL_PLATFORM: "linux" },
     stdio: "inherit",
   });
+  // install-electron exits 0 without installing when ELECTRON_OVERRIDE_DIST_PATH points at an existing binary.
+  if (!hasLinuxElectron(electronDir)) {
+    throw new Error(
+      `install-electron finished but ${electronDir} has no Linux Electron (is ELECTRON_OVERRIDE_DIST_PATH set?)`,
+    );
+  }
 }
