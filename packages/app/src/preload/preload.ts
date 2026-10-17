@@ -1,5 +1,6 @@
 // Preload: the renderer's only way to reach main: the host connection, the native folder dialog, app state (the
-// last and recent workshops, the sidebar's width and each workshop's layout) and saving pending edits before the window closes.
+// last and recent workshops, the sidebar's width and each workshop's layout), opening a link in the browser and saving
+// pending edits before the window closes.
 import { contextBridge, ipcRenderer } from "electron";
 
 function asString(value: unknown): string {
@@ -56,6 +57,9 @@ contextBridge.exposeInMainWorld("hone", {
   loadLayout: (root: string): Promise<unknown> => ipcRenderer.invoke("state:load-layout", root),
   saveLayout: async (root: string, layout: unknown): Promise<void> => {
     await ipcRenderer.invoke("state:save-layout", root, layout);
+  },
+  openExternal: async (url: string): Promise<void> => {
+    await ipcRenderer.invoke("shell:open-external", url);
   },
   onFlushSaves: (flush: () => Promise<boolean>): (() => void) => {
     function onRequest(): void {
