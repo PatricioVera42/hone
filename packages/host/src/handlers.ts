@@ -2,6 +2,7 @@ import {
   AppError,
   encodeNotification,
   filesChangedNotification,
+  filesCopyMethod,
   filesCountFilesMethod,
   filesCreateMethod,
   filesDeleteMethod,
@@ -22,6 +23,7 @@ import {
   type WorkshopInfo,
 } from "@hone/protocol";
 import {
+  copyInto,
   countFiles,
   createEntry,
   deleteEntry,
@@ -86,6 +88,9 @@ export function createConnection(send: (message: string) => void): Connection {
       registerMethod(filesListMethod, ({ path }) => listFolder(workshopRoot, path)),
       registerMethod(filesReadMethod, ({ path }) => readFile(workshopRoot, path)),
       registerMethod(filesCountFilesMethod, ({ path }) => countFiles(workshopRoot, path)),
+      registerMethod(filesCopyMethod, ({ sources, target }) =>
+        copyInto(workshopRoot, sources, target),
+      ),
       registerMethod(filesCreateMethod, ({ path, kind }) => createEntry(workshopRoot, path, kind)),
       registerMethod(filesDeleteMethod, ({ path }) => deleteEntry(workshopRoot, path)),
       registerMethod(filesRenameMethod, ({ from, to }) => renameEntry(workshopRoot, from, to)),

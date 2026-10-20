@@ -13,6 +13,11 @@ export function entryName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
+/** The folder that holds the entry at `path`: its path without the last segment, "" for the workshop root. */
+export function parentFolder(path: string): string {
+  return path.slice(0, Math.max(path.lastIndexOf("/"), 0));
+}
+
 /** The protocol path of the entry called `name` inside the folder at `folder`, where "" is the workshop root. */
 export function childPath(folder: string, name: string): string {
   return folder === "" ? name : `${folder}/${name}`;

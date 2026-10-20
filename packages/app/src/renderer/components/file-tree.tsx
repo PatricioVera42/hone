@@ -1,6 +1,7 @@
 import {
   appErrorCodes,
   filesChangedNotification,
+  filesCopyMethod,
   filesCreateMethod,
   filesListMethod,
   type FileChange,
@@ -19,6 +20,7 @@ import {
   useEffect,
   useState,
   type Dispatch,
+  type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
@@ -42,10 +44,12 @@ import {
   SidebarMenuSkeleton,
   SidebarMenuSub,
 } from "@/components/ui/sidebar.tsx";
+import { toast } from "@/components/ui/toast.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { applyFileChange } from "@/apply-file-change.ts";
 import { entryNameError, noteFileName } from "@/entry-name.ts";
-import { childPath, renamedPath } from "@/entry-path.ts";
+import { copyFailureMessage } from "@/copy-failure.ts";
+import { childPath, parentFolder, renamedPath } from "@/entry-path.ts";
 import { fileIcon } from "@/file-icon.ts";
 import { HostCallError, type HostClient } from "@/host-client.ts";
 import { errorMessage, reportError } from "@/report-error.ts";
@@ -68,6 +72,8 @@ interface TreeContextValue {
   readonly setExpandedFolders: Dispatch<SetStateAction<ReadonlySet<string>>>;
   readonly edit: TreeEdit | undefined;
   readonly setEdit: (edit: TreeEdit | undefined) => void;
+  /** The folder that files being dragged over the tree would be copied into, `""` for the root. */
+  readonly dropFolder: string | undefined;
   /** Renames an entry, rejecting with a {@link HostCallError} when the host refuses. */
   readonly onRename: (from: string, to: string) => Promise<void>;
 }
@@ -359,7 +365,7 @@ interface FolderItemProps {
 }
 
 function FolderItem({ path, name, renameRow }: FolderItemProps) {
-  const { expandedFolders, setExpandedFolders } = useTree();
+  const { expandedFolders, setExpandedFolders, dropFolder } = useTree();
   const expanded = expandedFolders.has(path);
   // Stays mounted once loaded, so collapsing and expanding again keeps the subfolders as they were.
   const [loaded, setLoaded] = useState(expanded);
@@ -400,6 +406,8 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
           aria-expanded={expanded}
           data-entry-path={path}
           data-entry-kind="folder"
+          // Highlights the folder files are being dragged over.
+          isActive={dropFolder === path}
           title={name}
           onClick={() => {
             setExpandedFolders((current) => {
@@ -446,6 +454,17 @@ function targetOf(element: EventTarget): TreeTarget {
   return { path, kind };
 }
 
+/** The folder a drop on the element under the pointer lands in: the folder itself, or the folder of a file. */
+function dropFolderOf(element: EventTarget): string {
+  const target = targetOf(element);
+  return target.kind === "folder" ? target.path : parentFolder(target.path);
+}
+
+// Only files from outside count; text and links dragged over the tree do nothing.
+function carriesFiles(event: DragEvent): boolean {
+  return event.dataTransfer.types.includes("Files");
+}
+
 interface FileTreeProps {
   readonly client: HostClient;
   readonly onOpenFile: (path: string) => void;
@@ -474,6 +493,7 @@ export function FileTree({
   const [edit, setEdit] = useState<TreeEdit>();
   const [menuTarget, setMenuTarget] = useState<TreeTarget>(rootTarget);
   const [deleting, setDeleting] = useState<TreeTarget>();
+  const [dropFolder, setDropFolder] = useState<string>();
 
   function startCreating(kind: NewEntryKind): void {
     const folder = menuTarget.path;
@@ -495,16 +515,71 @@ export function FileTree({
     }
   }
 
+  function onDragOver(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    // Allows the drop, which the browser refuses by default.
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDropFolder(dropFolderOf(event.target));
+  }
+
+  function onDragLeave(event: DragEvent): void {
+    // Moving between rows also leaves one, but stays inside the tree.
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setDropFolder(undefined);
+  }
+
+  async function copyDropped(files: File[], folder: string): Promise<void> {
+    const sources = await window.hone.getDroppedPaths(files);
+    if (sources.length === 0) return;
+    const { failed } = await client.call(filesCopyMethod, { sources, target: folder });
+    // The tree shows the copies through the watcher, so only failures are told.
+    if (failed.length === 0) return;
+    toast.add({
+      type: "error",
+      title: "Couldn't copy everything",
+      description: copyFailureMessage(failed),
+    });
+  }
+
+  function onDrop(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDropFolder(undefined);
+    // Read now: the browser empties the list once the event is over.
+    void copyDropped([...event.dataTransfer.files], dropFolderOf(event.target)).catch(reportError);
+  }
+
   return (
     <TreeContext
-      value={{ client, onOpenFile, expandedFolders, setExpandedFolders, edit, setEdit, onRename }}
+      value={{
+        client,
+        onOpenFile,
+        expandedFolders,
+        setExpandedFolders,
+        edit,
+        setEdit,
+        dropFolder,
+        onRename,
+      }}
     >
       <ContextMenu>
         {/* Fills the sidebar, so right-clicking below the last row still reaches the root's menu. */}
         <ContextMenuTrigger
-          render={<nav aria-label="Files" className="flex-1" />}
+          render={
+            <nav
+              aria-label="Files"
+              data-drop-target={dropFolder === "" ? "" : undefined}
+              className="flex-1 data-drop-target:ring-1 data-drop-target:ring-sidebar-ring data-drop-target:ring-inset"
+            />
+          }
           onContextMenu={(event: MouseEvent) => setMenuTarget(targetOf(event.target))}
           onKeyDown={onKeyDown}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
         >
           <SidebarGroup>
             <SidebarMenu>

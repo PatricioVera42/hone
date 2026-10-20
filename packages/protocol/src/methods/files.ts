@@ -120,3 +120,28 @@ export const filesCountFilesMethod: MethodDefinition<{ path: string }, { count: 
   params: z.object({ path: z.string() }),
   result: z.object({ count: z.number() }),
 };
+
+const copyResultSchema = z.object({
+  copied: z.array(z.object({ source: z.string(), name: z.string() })),
+  failed: z.array(z.object({ source: z.string(), reason: z.string(), partlyCopied: z.boolean() })),
+});
+
+/** What {@link filesCopyMethod} did with each source: the name each copy got, and why the others failed. */
+export type CopyResult = z.infer<typeof copyResultSchema>;
+
+/**
+ * Copies files and folders from anywhere on the host's disk into a folder of the open workshop, leaving the
+ * originals where they were. `sources` are absolute paths; `target` is the destination folder, relative to the
+ * workshop's root. A folder is copied with everything inside it. Names are only compared at the top level: when
+ * one is taken in `target`, the copy gets the first free ` (1)`, ` (2)`, … before a file's last extension
+ * (`notes.pdf` → `notes (1).pdf`) or at the end of a folder's or extensionless name (`Week 3` → `Week 3 (1)`).
+ * A source that fails doesn't stop the others. It lands in `failed` with `partlyCopied` when part of it was
+ * already copied, as a folder that failed halfway is. A folder copied into itself or one of its subfolders fails.
+ * Fails with `NoWorkshopOpen`, `OutsideWorkshop` or `NotFound` when `target` isn't a folder of the workshop.
+ */
+export const filesCopyMethod: MethodDefinition<{ sources: string[]; target: string }, CopyResult> =
+  {
+    name: "files.copy",
+    params: z.object({ sources: z.array(z.string()), target: z.string() }),
+    result: copyResultSchema,
+  };
