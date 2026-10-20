@@ -224,11 +224,25 @@ async function start(): Promise<void> {
     window.webContents.reload();
   });
 
-  ipcMain.handle("files:to-host-paths", (_event, paths: unknown) => {
+  ipcMain.handle("files:to-host-paths", async (_event, paths: unknown) => {
     if (!Array.isArray(paths) || !paths.every((item) => typeof item === "string")) {
       throw new Error("getDroppedPaths needs a list of strings");
     }
-    return Promise.all(paths.map(toLinuxPath));
+    // One at a time, so a path that doesn't convert fails alone and the rest still copy.
+    const converted = await Promise.all(
+      paths.map((dropped) =>
+        toLinuxPath(dropped).then(
+          (hostPath) => ({ dropped, hostPath }),
+          () => ({ dropped, hostPath: undefined }),
+        ),
+      ),
+    );
+    return {
+      hostPaths: converted.flatMap(({ hostPath }) => (hostPath === undefined ? [] : [hostPath])),
+      unreachable: converted.flatMap(({ dropped, hostPath }) =>
+        hostPath === undefined ? [dropped] : [],
+      ),
+    };
   });
   ipcMain.handle("shell:open-external", async (_event, url: unknown) => {
     const allowed = browserUrl(url);

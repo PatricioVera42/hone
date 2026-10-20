@@ -23,10 +23,11 @@ interface Window {
     /** Asks main to open `url` in the system's default browser. Main ignores it unless the protocol is `http:` or `https:`. */
     openExternal(url: string): Promise<void>;
     /**
-     * The paths of files and folders dropped on the window, as Linux paths the host can read. Skips those that
-     * aren't on the disk, such as an image dragged from a web page.
+     * The files and folders dropped on the window, as Linux paths the host can read (`hostPaths`) and, as they were
+     * dropped, those that couldn't be converted to one (`unreachable`). Skips what isn't on the disk, such as an
+     * image dragged from a web page.
      */
-    getDroppedPaths(files: File[]): Promise<string[]>;
+    getDroppedPaths(files: File[]): Promise<{ hostPaths: string[]; unreachable: string[] }>;
     /**
      * Registers what main runs before the window closes, which resolves with whether edits are still pending. Main
      * closes the window once it settles without pending edits, or after 2 seconds; with pending edits, it asks

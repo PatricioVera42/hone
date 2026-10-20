@@ -1,6 +1,7 @@
 import {
   AppError,
   maxCountedFiles,
+  validateName,
   type CopyResult,
   type FileContent,
   type FileEntry,
@@ -235,6 +236,9 @@ type Inspection =
 async function inspectSource(source: string, folder: string): Promise<Inspection> {
   try {
     if (!path.isAbsolute(source)) throw new Error("it isn't an absolute path");
+    // `..` and `.` are what `path.basename` gives for a source ending in them, and a copy named so would land outside `folder`.
+    const validation = validateName(path.basename(source));
+    if (!validation.valid) throw new Error(validation.reason);
     const kind = (await fs.lstat(source)).isDirectory() ? "folder" : "file";
     if (kind === "folder" && isInside(await fs.realpath(source), folder)) {
       throw new Error("a folder can't be copied into itself");

@@ -532,15 +532,17 @@ export function FileTree({
   }
 
   async function copyDropped(files: File[], folder: string): Promise<void> {
-    const sources = await window.hone.getDroppedPaths(files);
-    if (sources.length === 0) return;
-    const { failed } = await client.call(filesCopyMethod, { sources, target: folder });
+    const { hostPaths, unreachable } = await window.hone.getDroppedPaths(files);
+    const { failed } =
+      hostPaths.length === 0
+        ? { failed: [] }
+        : await client.call(filesCopyMethod, { sources: hostPaths, target: folder });
     // The tree shows the copies through the watcher, so only failures are told.
-    if (failed.length === 0) return;
+    if (failed.length === 0 && unreachable.length === 0) return;
     toast.add({
       type: "error",
       title: "Couldn't copy everything",
-      description: copyFailureMessage(failed),
+      description: copyFailureMessage(failed, unreachable),
     });
   }
 

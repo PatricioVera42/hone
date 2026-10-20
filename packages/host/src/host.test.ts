@@ -1077,14 +1077,43 @@ describe("files.copy", () => {
     await new Promise<void>((resolve) =>
       socket.listen(path.join(outside, "Week 3", "socket"), resolve),
     );
-    await host.call("workshop.open", { path: root });
+    try {
+      await host.call("workshop.open", { path: root });
 
-    const source = path.join(outside, "Week 3");
-    const result = await host.call("files.copy", { sources: [source], target: "" });
-    expect(result).toMatchObject({ copied: [], failed: [{ source, partlyCopied: true }] });
-    expect((await fs.stat(path.join(root, "Week 3"))).isDirectory()).toBe(true);
-    socket.close();
+      const source = path.join(outside, "Week 3");
+      const result = await host.call("files.copy", { sources: [source], target: "" });
+      expect(result).toMatchObject({ copied: [], failed: [{ source, partlyCopied: true }] });
+      expect((await fs.stat(path.join(root, "Week 3"))).isDirectory()).toBe(true);
+    } finally {
+      socket.close();
+    }
   });
+
+  it.each(["sub/..", "sub/."])(
+    "fails a source ending in %s, writing nothing outside the workshop",
+    async (ending) => {
+      host = await startTestHost();
+      const parent = await makeOutside();
+      const root = path.join(parent, "workshop");
+      await fs.mkdir(path.join(root, ".hone", "generator"), { recursive: true });
+      const outside = await makeOutside();
+      await fs.mkdir(path.join(outside, "sub"));
+      await fs.writeFile(path.join(outside, "one.md"), "one");
+      await host.call("workshop.open", { path: root });
+
+      const source = `${outside}/${ending}`;
+      const result = await host.call("files.copy", {
+        sources: [source, path.join(outside, "one.md")],
+        target: "",
+      });
+      expect(result).toMatchObject({
+        copied: [{ name: "one.md" }],
+        failed: [{ source, partlyCopied: false }],
+      });
+      await expect(fs.readdir(parent)).resolves.toStrictEqual(["workshop"]);
+      expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "one.md"]);
+    },
+  );
 
   it("reports a folder dropped into itself or a subfolder as failed, copying nothing", async () => {
     host = await startTestHost();
