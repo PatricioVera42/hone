@@ -2,7 +2,8 @@ import { AppError, validateName } from "@hone/protocol";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-function isInside(folder: string, candidate: string): boolean {
+/** Whether `candidate` is `folder` itself or somewhere inside it, by path alone. */
+export function isInside(folder: string, candidate: string): boolean {
   const relative = path.relative(folder, candidate);
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }

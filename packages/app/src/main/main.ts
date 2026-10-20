@@ -77,7 +77,7 @@ function wslOutput(args: string[]): Promise<string> {
   });
 }
 
-/** Converts a path from the Windows folder dialog (`\\wsl.localhost\...`, `\\wsl$\...` or a drive path) to the Linux path the host uses, so a drive path becomes `/mnt/<drive>/...`. */
+/** Converts a path from the Windows folder dialog or a dropped file (`\\wsl.localhost\...`, `\\wsl$\...` or a drive path) to the Linux path the host uses, so a drive path becomes `/mnt/<drive>/...`. */
 function toLinuxPath(dialogPath: string): Promise<string> {
   if (process.platform !== "win32") return Promise.resolve(dialogPath);
   return wslOutput(["wslpath", "-u", dialogPath]);
@@ -224,6 +224,26 @@ async function start(): Promise<void> {
     window.webContents.reload();
   });
 
+  ipcMain.handle("files:to-host-paths", async (_event, paths: unknown) => {
+    if (!Array.isArray(paths) || !paths.every((item) => typeof item === "string")) {
+      throw new Error("getDroppedPaths needs a list of strings");
+    }
+    // One at a time, so a path that doesn't convert fails alone and the rest still copy.
+    const converted = await Promise.all(
+      paths.map((dropped) =>
+        toLinuxPath(dropped).then(
+          (hostPath) => ({ dropped, hostPath }),
+          () => ({ dropped, hostPath: undefined }),
+        ),
+      ),
+    );
+    return {
+      hostPaths: converted.flatMap(({ hostPath }) => (hostPath === undefined ? [] : [hostPath])),
+      unreachable: converted.flatMap(({ dropped, hostPath }) =>
+        hostPath === undefined ? [dropped] : [],
+      ),
+    };
+  });
   ipcMain.handle("shell:open-external", async (_event, url: unknown) => {
     const allowed = browserUrl(url);
     if (allowed !== undefined) await shell.openExternal(allowed);

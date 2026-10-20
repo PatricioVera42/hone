@@ -1,7 +1,7 @@
 // Preload: the renderer's only way to reach main: the host connection, the native folder dialog, app state (the
-// last and recent workshops, the sidebar's width and each workshop's layout), opening a link in the browser and saving
-// pending edits before the window closes.
-import { contextBridge, ipcRenderer } from "electron";
+// last and recent workshops, the sidebar's width and each workshop's layout), opening a link in the browser, the paths
+// of files dropped on the window and saving pending edits before the window closes.
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 function asString(value: unknown): string {
   if (typeof value !== "string") throw new Error("host connection IPC returned a non-string value");
@@ -60,6 +60,24 @@ contextBridge.exposeInMainWorld("hone", {
   },
   openExternal: async (url: string): Promise<void> => {
     await ipcRenderer.invoke("shell:open-external", url);
+  },
+  getDroppedPaths: async (
+    files: File[],
+  ): Promise<{ hostPaths: string[]; unreachable: string[] }> => {
+    const converted: unknown = await ipcRenderer.invoke(
+      "files:to-host-paths",
+      // Electron no longer exposes `File.path`. Files that aren't on the disk, such as dragged from a web page, have none.
+      files
+        .map((file) => webUtils.getPathForFile(file))
+        .filter((droppedPath) => droppedPath !== ""),
+    );
+    if (typeof converted !== "object" || converted === null) {
+      throw new Error("IPC returned a value that is not the converted paths");
+    }
+    return {
+      hostPaths: asStrings("hostPaths" in converted ? converted.hostPaths : undefined),
+      unreachable: asStrings("unreachable" in converted ? converted.unreachable : undefined),
+    };
   },
   onFlushSaves: (flush: () => Promise<boolean>): (() => void) => {
     function onRequest(): void {

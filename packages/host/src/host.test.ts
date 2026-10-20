@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -925,6 +926,235 @@ function runShell(command: string, cwd: string): Promise<void> {
     });
   });
 }
+
+/** A folder outside any workshop, for what is copied in. */
+function makeOutside(): Promise<string> {
+  return fs.mkdtemp(path.join(os.tmpdir(), "hone-outside-"));
+}
+
+describe("files.copy", () => {
+  it("copies a file and a whole folder into the target folder, leaving the originals", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.mkdir(path.join(root, "math"));
+    await fs.mkdir(path.join(outside, "Week 3", "slides"), { recursive: true });
+    await fs.writeFile(path.join(outside, "notes.pdf"), "pdf");
+    await fs.writeFile(path.join(outside, "Week 3", "outline.md"), "outline");
+    await fs.writeFile(path.join(outside, "Week 3", "slides", "one.md"), "one");
+    await host.call("workshop.open", { path: root });
+
+    const sources = [path.join(outside, "notes.pdf"), path.join(outside, "Week 3")];
+    await expect(host.call("files.copy", { sources, target: "math" })).resolves.toStrictEqual({
+      copied: [
+        { source: sources[0], name: "notes.pdf" },
+        { source: sources[1], name: "Week 3" },
+      ],
+      failed: [],
+    });
+    expect(await readTree(path.join(root, "math"))).toStrictEqual(
+      new Map([
+        ["notes.pdf", "pdf"],
+        ["Week 3/outline.md", "outline"],
+        ["Week 3/slides/one.md", "one"],
+      ]),
+    );
+    await expect(fs.readFile(path.join(outside, "notes.pdf"), "utf8")).resolves.toBe("pdf");
+    await expect(fs.readFile(path.join(outside, "Week 3", "outline.md"), "utf8")).resolves.toBe(
+      "outline",
+    );
+  });
+
+  it("copies into the workshop root with an empty target", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.writeFile(path.join(outside, "notes.pdf"), "pdf");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.copy", { sources: [path.join(outside, "notes.pdf")], target: "" });
+    await expect(fs.readFile(path.join(root, "notes.pdf"), "utf8")).resolves.toBe("pdf");
+  });
+
+  it("numbers a copy whose name is taken, without touching what's there", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.mkdir(path.join(outside, "Week 3"));
+    await fs.writeFile(path.join(outside, "Week 3", "new.md"), "new");
+    await fs.writeFile(path.join(outside, "notes.pdf"), "new");
+    await fs.writeFile(path.join(outside, "README"), "new");
+    await fs.writeFile(path.join(root, "notes.pdf"), "old");
+    await fs.writeFile(path.join(root, "notes (1).pdf"), "old");
+    await fs.writeFile(path.join(root, "README"), "old");
+    await fs.mkdir(path.join(root, "Week 3"));
+    await host.call("workshop.open", { path: root });
+
+    const result = await host.call("files.copy", {
+      sources: ["notes.pdf", "README", "Week 3"].map((name) => path.join(outside, name)),
+      target: "",
+    });
+    expect(result).toMatchObject({
+      copied: [{ name: "notes (2).pdf" }, { name: "README (1)" }, { name: "Week 3 (1)" }],
+      failed: [],
+    });
+    expect(await readTree(root)).toStrictEqual(
+      new Map([
+        ["notes.pdf", "old"],
+        ["notes (1).pdf", "old"],
+        ["notes (2).pdf", "new"],
+        ["README", "old"],
+        ["README (1)", "new"],
+        ["Week 3 (1)/new.md", "new"],
+      ]),
+    );
+  });
+
+  it("gives two sources with the same name different copies", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.mkdir(path.join(outside, "a"));
+    await fs.mkdir(path.join(outside, "b"));
+    await fs.writeFile(path.join(outside, "a", "notes.pdf"), "a");
+    await fs.writeFile(path.join(outside, "b", "notes.pdf"), "b");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.copy", {
+      sources: [path.join(outside, "a", "notes.pdf"), path.join(outside, "b", "notes.pdf")],
+      target: "",
+    });
+    await expect(fs.readFile(path.join(root, "notes.pdf"), "utf8")).resolves.toBe("a");
+    await expect(fs.readFile(path.join(root, "notes (1).pdf"), "utf8")).resolves.toBe("b");
+  });
+
+  it("copies a file of the workshop next to itself under a numbered name", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "math"));
+    await fs.writeFile(path.join(root, "math", "notes.pdf"), "pdf");
+    await host.call("workshop.open", { path: root });
+
+    await host.call("files.copy", {
+      sources: [path.join(root, "math", "notes.pdf")],
+      target: "math",
+    });
+    await expect(fs.readFile(path.join(root, "math", "notes (1).pdf"), "utf8")).resolves.toBe(
+      "pdf",
+    );
+  });
+
+  it("copies the others and reports the one that failed", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.writeFile(path.join(outside, "one.md"), "one");
+    await fs.writeFile(path.join(outside, "two.md"), "two");
+    await host.call("workshop.open", { path: root });
+
+    const missing = path.join(outside, "missing.md");
+    const result = await host.call("files.copy", {
+      sources: [path.join(outside, "one.md"), missing, path.join(outside, "two.md")],
+      target: "",
+    });
+    expect(result).toStrictEqual({
+      copied: [
+        { source: path.join(outside, "one.md"), name: "one.md" },
+        { source: path.join(outside, "two.md"), name: "two.md" },
+      ],
+      failed: [{ source: missing, reason: "it doesn't exist", partlyCopied: false }],
+    });
+    expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "one.md", "two.md"]);
+  });
+
+  it("reports a folder that failed halfway as partly copied", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.mkdir(path.join(outside, "Week 3"));
+    // A socket is something a folder copy can't do.
+    const socket = net.createServer();
+    await new Promise<void>((resolve) =>
+      socket.listen(path.join(outside, "Week 3", "socket"), resolve),
+    );
+    try {
+      await host.call("workshop.open", { path: root });
+
+      const source = path.join(outside, "Week 3");
+      const result = await host.call("files.copy", { sources: [source], target: "" });
+      expect(result).toMatchObject({ copied: [], failed: [{ source, partlyCopied: true }] });
+      expect((await fs.stat(path.join(root, "Week 3"))).isDirectory()).toBe(true);
+    } finally {
+      socket.close();
+    }
+  });
+
+  it.each(["sub/..", "sub/."])(
+    "fails a source ending in %s, writing nothing outside the workshop",
+    async (ending) => {
+      host = await startTestHost();
+      const parent = await makeOutside();
+      const root = path.join(parent, "workshop");
+      await fs.mkdir(path.join(root, ".hone", "generator"), { recursive: true });
+      const outside = await makeOutside();
+      await fs.mkdir(path.join(outside, "sub"));
+      await fs.writeFile(path.join(outside, "one.md"), "one");
+      await host.call("workshop.open", { path: root });
+
+      const source = `${outside}/${ending}`;
+      const result = await host.call("files.copy", {
+        sources: [source, path.join(outside, "one.md")],
+        target: "",
+      });
+      expect(result).toMatchObject({
+        copied: [{ name: "one.md" }],
+        failed: [{ source, partlyCopied: false }],
+      });
+      await expect(fs.readdir(parent)).resolves.toStrictEqual(["workshop"]);
+      expect((await fs.readdir(root)).toSorted()).toStrictEqual([".hone", "one.md"]);
+    },
+  );
+
+  it("reports a folder dropped into itself or a subfolder as failed, copying nothing", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    await fs.mkdir(path.join(root, "math", "algebra"), { recursive: true });
+    await fs.writeFile(path.join(root, "math", "groups.md"), "");
+    await host.call("workshop.open", { path: root });
+
+    const source = path.join(root, "math");
+    const testHost = host;
+    const results = await Promise.all(
+      ["math", "math/algebra"].map((target) =>
+        testHost.call("files.copy", { sources: [source], target }),
+      ),
+    );
+    for (const result of results) {
+      expect(result).toStrictEqual({
+        copied: [],
+        failed: [{ source, reason: "a folder can't be copied into itself", partlyCopied: false }],
+      });
+    }
+    expect([...(await readTree(path.join(root, "math"))).keys()]).toStrictEqual(["groups.md"]);
+  });
+
+  it("fails when the target isn't a folder of the workshop", async () => {
+    host = await startTestHost();
+    const root = await makeWorkshop();
+    const outside = await makeOutside();
+    await fs.writeFile(path.join(outside, "one.md"), "one");
+    await fs.writeFile(path.join(root, "idea.md"), "");
+    await host.call("workshop.open", { path: root });
+    const sources = [path.join(outside, "one.md")];
+
+    await expect(host.call("files.copy", { sources, target: "idea.md" })).rejects.toMatchObject({
+      code: -32003,
+    });
+    await expect(host.call("files.copy", { sources, target: ".." })).rejects.toMatchObject({
+      code: -32004,
+    });
+  });
+});
 
 describe("files.changed", () => {
   it("reports a file written by another process, with the SHA-256 of its bytes as the version", async () => {

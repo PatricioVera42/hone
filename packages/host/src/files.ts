@@ -1,9 +1,22 @@
-import { AppError, maxCountedFiles, type FileContent, type FileEntry } from "@hone/protocol";
+import {
+  AppError,
+  maxCountedFiles,
+  validateName,
+  type CopyResult,
+  type FileContent,
+  type FileEntry,
+} from "@hone/protocol";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Dirent, type Stats } from "node:fs";
 import path from "node:path";
+import { copyName } from "./copy-name.ts";
 import { inspectFile, maxBytes } from "./inspect-file.ts";
-import { resolveWorkshopEntryPath, resolveWorkshopPath } from "./workshop-path.ts";
+import {
+  isInside,
+  resolveWorkshopEntryPath,
+  resolveWorkshopFolder,
+  resolveWorkshopPath,
+} from "./workshop-path.ts";
 
 // Tool internals nobody browses, and big enough to swamp the tree.
 const hiddenNames = new Set([".git", "node_modules"]);
@@ -203,4 +216,90 @@ export async function countFiles(
   const counted = { count: 0 };
   await countInside(await resolveWorkshopPath(workshopRoot, protocolPath), protocolPath, counted);
   return { count: Math.min(counted.count, maxCountedFiles) };
+}
+
+/** Why a copy failed, in words for the user. */
+function copyFailureReason(error: unknown): string {
+  if (hasErrorCode(error, "ENOENT")) return "it doesn't exist";
+  if (hasErrorCode(error, "EACCES") || hasErrorCode(error, "EPERM")) return "permission denied";
+  if (hasErrorCode(error, "EBUSY")) return "it's locked by another program";
+  if (hasErrorCode(error, "ENOSPC")) return "the disk is full";
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** A source that can be copied and what it is, or why it can't. */
+type Inspection =
+  | { readonly source: string; readonly kind: FileEntry["kind"] }
+  | { readonly source: string; readonly error: unknown };
+
+/** Finds what `source` is, and rules out the sources that can't be copied into `folder` before any name is claimed. */
+async function inspectSource(source: string, folder: string): Promise<Inspection> {
+  try {
+    if (!path.isAbsolute(source)) throw new Error("it isn't an absolute path");
+    // `..` and `.` are what `path.basename` gives for a source ending in them, and a copy named so would land outside `folder`.
+    const validation = validateName(path.basename(source));
+    if (!validation.valid) throw new Error(validation.reason);
+    const kind = (await fs.lstat(source)).isDirectory() ? "folder" : "file";
+    if (kind === "folder" && isInside(await fs.realpath(source), folder)) {
+      throw new Error("a folder can't be copied into itself");
+    }
+    return { source, kind };
+  } catch (error) {
+    return { source, error };
+  }
+}
+
+type CopyOutcome = CopyResult["copied"][number] | CopyResult["failed"][number];
+
+function failedCopy(source: string, error: unknown, partlyCopied: boolean): CopyOutcome {
+  return { source, reason: copyFailureReason(error), partlyCopied };
+}
+
+/** Copies `source` to `copy`, a path in the workshop whose name is already claimed, and says how it went. */
+async function copyOne(
+  source: string,
+  kind: FileEntry["kind"],
+  copy: string,
+): Promise<CopyOutcome> {
+  try {
+    // Never overwrites: the name is free, and a copy that appeared since would fail rather than be replaced.
+    await fs.cp(source, copy, { recursive: true, force: false, errorOnExist: true });
+    return { source, name: path.basename(copy) };
+  } catch (error) {
+    // A folder that failed halfway stays partly copied.
+    return failedCopy(source, error, kind === "folder" && (await statEntry(copy)) !== undefined);
+  }
+}
+
+/**
+ * Copies files and folders from anywhere on the disk into a folder of the open workshop, naming each by
+ * {@link copyName}. A source that fails doesn't stop the rest. Fails like {@link resolveWorkshopFolder}.
+ */
+export async function copyInto(
+  workshopRoot: string | undefined,
+  sources: readonly string[],
+  target: string,
+): Promise<CopyResult> {
+  const folder = await resolveWorkshopFolder(workshopRoot, target);
+  const taken = new Set(await fs.readdir(folder));
+  const inspections = await Promise.all(sources.map((source) => inspectSource(source, folder)));
+  const outcomes = await Promise.all(
+    inspections.map((inspection) => {
+      if ("error" in inspection) {
+        return Promise.resolve(failedCopy(inspection.source, inspection.error, false));
+      }
+      // Claimed here, one source after the other and before any copy starts, so the names follow the order of the sources.
+      const name = copyName(path.basename(inspection.source), inspection.kind, (candidate) =>
+        taken.has(candidate),
+      );
+      taken.add(name);
+      return copyOne(inspection.source, inspection.kind, path.join(folder, name));
+    }),
+  );
+  const result: CopyResult = { copied: [], failed: [] };
+  for (const outcome of outcomes) {
+    if ("name" in outcome) result.copied.push(outcome);
+    else result.failed.push(outcome);
+  }
+  return result;
 }

@@ -11,12 +11,14 @@ The sidebar's tree lists the open workshop's files and folders, folders first in
 - `tree-rename` renames an entry on disk and in any open tab.
 - `tree-delete` deletes a file or folder after a confirmation that counts a folder's files, and closes their tabs.
 - `tree-follow-disk` shows entries created or deleted on disk without a refresh.
+- `tree-drop-files` copies files and folders dropped from outside the app into the folder under the pointer, numbering names that are taken.
 
 ## How to get to it (user POV)
 
 - Right-click a row: `New note`, `New file`, `New folder` and `Open terminal here` (on folders), `Rename`, `Delete`.
 - Right-click the empty space below the last row: the same create items, for the workshop root.
 - With a row focused: F2 renames, Delete deletes.
+- Drag files or folders from outside the app onto a folder row (copied into it), a file row (into its folder) or the empty space (into the workshop root).
 
 ## Driving it with verify.ts
 
@@ -31,6 +33,7 @@ Preconditions:
 - **Rename.** Click `idea.md` to open it, press F2 on its row, fill `Name` with `goal.md` and press Enter (`helpers.renameInTree(page, tree, "idea.md", "goal.md")`). `tab "goal.md"` replaces `idea.md`, and on disk only `goal.md` exists, still with `Taken.`
 - **Delete a folder.** Seed `math/groups.md` and `math/algebra/rings.md`, open `groups.md`, then press Delete on `math`'s row. `getByRole("alertdialog")` contains `Delete math?` and the file count. Click `Delete`: the `groups.md` tab closes, the `math` row disappears and `math/` is gone from disk.
 - **Follow the disk.** `writeFile` `outside.md` at the root: its row appears. `rm` it: the row disappears.
+- **Drop files.** Seed files and folders in `<scratch>/outside`. Playwright has no external drag, and a synthetic `File` has no path, so send the browser's own drag events with real paths: `const session = await page.context().newCDPSession(page)`, then `session.send("Input.dispatchDragEvent", { type, x, y, data: { items: [], files: [paths], dragOperationsMask: 1 } })` for `dragEnter`, `dragOver` and `drop` at the centre of the target row (or empty space in `tree`). After `dragOver`, a folder row has `data-active` and, over empty space, `tree` has `data-drop-target`. After `drop`, `expect.poll` `readdir` of the target folder: copies appear, a taken name gets ` (1)`, and the originals stay. A failure shows one `dialog "Couldn't copy everything"` naming each failed item. Close any listening socket the journey made in a `finally`, or the run never exits.
 - **Proof.** Snap the tree before and after each action, and `record` `readdir` of the touched folders.
 
 ## Gotchas
