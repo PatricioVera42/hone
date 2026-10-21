@@ -540,7 +540,6 @@ function SidebarMenuButton({
     isActive?: boolean;
     tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { state } = useSidebar();
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -562,11 +561,24 @@ function SidebarMenuButton({
     return comp;
   }
 
+  return <SidebarMenuButtonTooltip button={comp} tooltip={tooltip} />;
+}
+
+// Not in shadcn's code: the sidebar's state is read here and not in SidebarMenuButton, so a button without a tooltip
+// doesn't re-render each time the sidebar opens, closes or starts or ends a resize.
+function SidebarMenuButtonTooltip({
+  button,
+  tooltip,
+}: {
+  button: React.ReactElement;
+  tooltip: string | React.ComponentProps<typeof TooltipContent>;
+}) {
+  const { state } = useSidebar();
   const tooltipProps = typeof tooltip === "string" ? { children: tooltip } : tooltip;
 
   return (
     <Tooltip>
-      {comp}
+      {button}
       <TooltipContent
         side="right"
         align="center"
