@@ -1,5 +1,5 @@
 import { filesDeleteMethod, type WorkshopInfo } from "@hone/protocol";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,10 +63,21 @@ export function WorkshopScreen({
   // What the tree asked of the editors before the editor area was ready, which waits for the saved layout. Run once it is.
   const askedEarly = useRef<((editors: Editors) => void)[]>([]);
 
-  function withEditors(action: (editors: Editors) => void): void {
+  // Both refs are read when it's called, so it never goes stale and can keep one identity.
+  const withEditors = useCallback((action: (editors: Editors) => void): void => {
     if (editors.current === undefined) askedEarly.current.push(action);
     else action(editors.current);
-  }
+  }, []);
+
+  // Kept the same across renders, so a re-render of this screen doesn't render every row of the file tree again.
+  const openFile = useCallback(
+    (path: string) => {
+      withEditors((ready) => {
+        ready.openFile(path);
+      });
+    },
+    [withEditors],
+  );
 
   // This component outlives a workshop switch, but the editors and what was asked of them belong to one workshop.
   useEffect(
@@ -77,10 +88,13 @@ export function WorkshopScreen({
     [workshop.root],
   );
 
-  async function renameEntry(from: string, to: string): Promise<void> {
-    await openFiles.rename(client, from, to);
-    if (editors.current !== undefined) renameEditorTabs(editors.current.api, from, to);
-  }
+  const renameEntry = useCallback(
+    async (from: string, to: string): Promise<void> => {
+      await openFiles.rename(client, from, to);
+      if (editors.current !== undefined) renameEditorTabs(editors.current.api, from, to);
+    },
+    [client, openFiles],
+  );
 
   async function deleteEntry(path: string): Promise<void> {
     await client.call(filesDeleteMethod, { path });
@@ -131,11 +145,7 @@ export function WorkshopScreen({
           <FileTree
             key={workshop.root}
             client={client}
-            onOpenFile={(path) => {
-              withEditors((ready) => {
-                ready.openFile(path);
-              });
-            }}
+            onOpenFile={openFile}
             onOpenTerminal={(path) => {
               const title = path === "" ? workshop.name : path.slice(path.lastIndexOf("/") + 1);
               withEditors((ready) => {

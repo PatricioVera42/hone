@@ -16,15 +16,16 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createContext,
+  memo,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  type Dispatch,
+  useSyncExternalStore,
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-  type SetStateAction,
 } from "react";
 import {
   ContextMenu,
@@ -64,12 +65,37 @@ type TreeEdit =
   | { readonly action: "create"; readonly folder: string; readonly kind: NewEntryKind }
   | { readonly action: "rename"; readonly path: string };
 
+/**
+ * The paths of the expanded folders. A folder reads only its own, so toggling one folder renders that folder and not
+ * every other row, which holding the set in the tree's state would.
+ */
+interface ExpandedFolders {
+  readonly has: (path: string) => boolean;
+  readonly update: (update: (current: ReadonlySet<string>) => ReadonlySet<string>) => void;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
+function createExpandedFolders(): ExpandedFolders {
+  let current: ReadonlySet<string> = new Set();
+  const listeners = new Set<() => void>();
+  return {
+    has: (path) => current.has(path),
+    update: (update) => {
+      current = update(current);
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
 interface TreeContextValue {
   readonly client: HostClient;
   /** Called with a file's protocol path when it's clicked or created as a note. */
   readonly onOpenFile: (path: string) => void;
-  readonly expandedFolders: ReadonlySet<string>;
-  readonly setExpandedFolders: Dispatch<SetStateAction<ReadonlySet<string>>>;
+  readonly expandedFolders: ExpandedFolders;
   readonly edit: TreeEdit | undefined;
   readonly setEdit: (edit: TreeEdit | undefined) => void;
   /** The folder that files being dragged over the tree would be copied into, `""` for the root. */
@@ -211,7 +237,7 @@ interface RenameRowProps {
 }
 
 function RenameRow({ folder, entry, siblings, onRenamed }: RenameRowProps) {
-  const { onRename, setEdit, setExpandedFolders } = useTree();
+  const { onRename, setEdit, expandedFolders } = useTree();
 
   return (
     <NameRow
@@ -226,7 +252,7 @@ function RenameRow({ folder, entry, siblings, onRenamed }: RenameRowProps) {
           await onRename(from, to);
           onRenamed(name);
           // Keeps a renamed folder, and the folders inside it, expanded as they were.
-          setExpandedFolders(
+          expandedFolders.update(
             (current) => new Set([...current].map((path) => renamedPath(path, from, to) ?? path)),
           );
         }
@@ -237,11 +263,40 @@ function RenameRow({ folder, entry, siblings, onRenamed }: RenameRowProps) {
   );
 }
 
+interface FileRowProps {
+  readonly path: string;
+  readonly name: string;
+  /** Shown instead of the file's button while it's being renamed. */
+  readonly renameRow: ReactNode;
+  readonly onOpenFile: (path: string) => void;
+}
+
+// Memoized, like the folder rows, so a change to one row or to the tree's state doesn't render every file row again.
+const FileRow = memo(function FileRow({ path, name, renameRow, onOpenFile }: FileRowProps) {
+  return (
+    <SidebarMenuItem>
+      {renameRow ?? (
+        <SidebarMenuButton
+          data-entry-path={path}
+          data-entry-kind="file"
+          title={name}
+          onClick={() => onOpenFile(path)}
+        >
+          {/* Lines the file up with its sibling folders' icons, which follow a chevron. */}
+          <span aria-hidden className="size-4 shrink-0" />
+          <HugeiconsIcon icon={fileIcon(name)} strokeWidth={2} />
+          <span>{name}</span>
+        </SidebarMenuButton>
+      )}
+    </SidebarMenuItem>
+  );
+});
+
 /**
  * Lists one folder when it mounts, so a folder's children are only fetched once it's first expanded, and keeps it
  * up to date with `files.changed` from then on.
  */
-function FolderContents({
+const FolderContents = memo(function FolderContents({
   path,
   onUnavailable,
 }: {
@@ -336,26 +391,18 @@ function FolderContents({
             renameRow={renameRow(entry)}
           />
         ) : (
-          <SidebarMenuItem key={entry.name}>
-            {renameRow(entry) ?? (
-              <SidebarMenuButton
-                data-entry-path={childPath(path, entry.name)}
-                data-entry-kind="file"
-                title={entry.name}
-                onClick={() => onOpenFile(childPath(path, entry.name))}
-              >
-                {/* Lines the file up with its sibling folders' icons, which follow a chevron. */}
-                <span aria-hidden className="size-4 shrink-0" />
-                <HugeiconsIcon icon={fileIcon(entry.name)} strokeWidth={2} />
-                <span>{entry.name}</span>
-              </SidebarMenuButton>
-            )}
-          </SidebarMenuItem>
+          <FileRow
+            key={entry.name}
+            path={childPath(path, entry.name)}
+            name={entry.name}
+            renameRow={renameRow(entry)}
+            onOpenFile={onOpenFile}
+          />
         ),
       )}
     </>
   );
-}
+});
 
 interface FolderItemProps {
   readonly path: string;
@@ -364,9 +411,9 @@ interface FolderItemProps {
   readonly renameRow: ReactNode;
 }
 
-function FolderItem({ path, name, renameRow }: FolderItemProps) {
-  const { expandedFolders, setExpandedFolders, dropFolder } = useTree();
-  const expanded = expandedFolders.has(path);
+const FolderItem = memo(function FolderItem({ path, name, renameRow }: FolderItemProps) {
+  const { expandedFolders, dropFolder } = useTree();
+  const expanded = useSyncExternalStore(expandedFolders.subscribe, () => expandedFolders.has(path));
   // Stays mounted once loaded, so collapsing and expanding again keeps the subfolders as they were.
   const [loaded, setLoaded] = useState(expanded);
   // Expanded from elsewhere too, such as by New note on it.
@@ -410,7 +457,7 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
           isActive={dropFolder === path}
           title={name}
           onClick={() => {
-            setExpandedFolders((current) => {
+            expandedFolders.update((current) => {
               const next = new Set(current);
               if (expanded) next.delete(path);
               else next.add(path);
@@ -434,7 +481,7 @@ function FolderItem({ path, name, renameRow }: FolderItemProps) {
       )}
     </SidebarMenuItem>
   );
-}
+});
 
 /** A file or folder row, or the workshop root (`""`) for the tree's empty space. */
 interface TreeTarget {
@@ -489,7 +536,7 @@ export function FileTree({
   onRename,
   onDelete,
 }: FileTreeProps) {
-  const [expandedFolders, setExpandedFolders] = useState<ReadonlySet<string>>(new Set());
+  const [expandedFolders] = useState(createExpandedFolders);
   const [edit, setEdit] = useState<TreeEdit>();
   const [menuTarget, setMenuTarget] = useState<TreeTarget>(rootTarget);
   const [deleting, setDeleting] = useState<TreeTarget>();
@@ -497,7 +544,7 @@ export function FileTree({
 
   function startCreating(kind: NewEntryKind): void {
     const folder = menuTarget.path;
-    if (folder !== "") setExpandedFolders((current) => new Set(current).add(folder));
+    if (folder !== "") expandedFolders.update((current) => new Set(current).add(folder));
     setEdit({ action: "create", folder, kind });
   }
 
@@ -554,19 +601,22 @@ export function FileTree({
     void copyDropped([...event.dataTransfer.files], dropFolderOf(event.target)).catch(reportError);
   }
 
+  // Kept the same while none of it changes, so the menu or the delete dialog opening doesn't render the rows again.
+  const tree = useMemo(
+    () => ({
+      client,
+      onOpenFile,
+      expandedFolders,
+      edit,
+      setEdit,
+      dropFolder,
+      onRename,
+    }),
+    [client, onOpenFile, expandedFolders, edit, dropFolder, onRename],
+  );
+
   return (
-    <TreeContext
-      value={{
-        client,
-        onOpenFile,
-        expandedFolders,
-        setExpandedFolders,
-        edit,
-        setEdit,
-        dropFolder,
-        onRename,
-      }}
-    >
+    <TreeContext value={tree}>
       <ContextMenu>
         {/* Fills the sidebar, so right-clicking below the last row still reaches the root's menu. */}
         <ContextMenuTrigger
